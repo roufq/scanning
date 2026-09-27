@@ -1,0 +1,7 @@
+fastapi==0.118.*
+uvicorn==0.37.*
+pillow==11.*
+imagehash==4.3.*
+numpy==2.*
+pytest==8.*
+httpx==0.28.*

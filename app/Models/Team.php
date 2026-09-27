@@ -25,6 +25,8 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, TeamInvitation> $invitations
  * @property-read Collection<int, Membership> $memberships
  * @property-read Collection<int, User> $members
+ * @property-read Collection<int, Employee> $employees
+ * @property-read Collection<int, Scan> $scans
  */
 #[Fillable(['name', 'slug', 'is_personal'])]
 class Team extends Model
@@ -93,6 +95,26 @@ class Team extends Model
     public function invitations(): HasMany
     {
         return $this->hasMany(TeamInvitation::class);
+    }
+
+    /**
+     * Get all employees whose screenshots the team reviews.
+     *
+     * @return HasMany<Employee, $this>
+     */
+    public function employees(): HasMany
+    {
+        return $this->hasMany(Employee::class);
+    }
+
+    /**
+     * Get all screenshot scans for this team.
+     *
+     * @return HasMany<Scan, $this>
+     */
+    public function scans(): HasMany
+    {
+        return $this->hasMany(Scan::class);
     }
 
     /**
