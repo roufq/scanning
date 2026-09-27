@@ -1,3 +1,4 @@
+import { exportMethod as scanExport } from '@/routes/scans';
 import { image as screenshotImage } from '@/routes/scans/screenshots';
 import type { ScanStatus, ScreenshotActivity } from '@/types/scans';
 
@@ -5,6 +6,7 @@ export const activityColors: Record<ScreenshotActivity, string> = {
     active: 'bg-emerald-500',
     low: 'bg-amber-400',
     idle: 'bg-red-500',
+    cursor_only: 'bg-orange-600',
     duplicate: 'bg-fuchsia-700',
     unknown: 'bg-zinc-400',
 };
@@ -13,6 +15,7 @@ export const activityBorders: Record<ScreenshotActivity, string> = {
     active: 'border-emerald-500',
     low: 'border-amber-400',
     idle: 'border-red-500',
+    cursor_only: 'border-orange-600',
     duplicate: 'border-fuchsia-700',
     unknown: 'border-zinc-300 dark:border-zinc-600',
 };
@@ -40,6 +43,14 @@ export function screenshotUrl(
         screenshot: screenshotId,
         variant,
     });
+}
+
+export function exportUrl(
+    teamSlug: string,
+    scanId: number,
+    format: 'xlsx' | 'pdf',
+): string {
+    return scanExport.url({ current_team: teamSlug, scan: scanId, format });
 }
 
 export function formatPercent(ratio: number | null): string {

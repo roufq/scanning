@@ -141,6 +141,8 @@ class ScanController extends Controller
                 'activity' => ($screenshot->activity ?? ScreenshotActivity::Unknown)->value,
                 'changeRatio' => $screenshot->change_ratio === null ? null : (float) $screenshot->change_ratio,
                 'changeBbox' => $screenshot->change_bbox,
+                'changeRegions' => collect($screenshot->change_regions ?? [])->pluck('bbox')->all(),
+                'screenClock' => $screenshot->screen_clock,
                 'similarityGroup' => $screenshot->similarity_group,
                 'hasThumbnail' => $screenshot->thumbnail_path !== null,
                 'error' => $screenshot->error,
@@ -164,6 +166,7 @@ class ScanController extends Controller
                 'screenshotId' => $finding->screenshot_id,
                 'score' => $finding->score === null ? null : (float) $finding->score,
                 'details' => $finding->details,
+                'description' => $finding->description(),
                 'related' => $finding->relatedScreenshot ? [
                     'id' => $finding->relatedScreenshot->id,
                     'scanId' => $finding->relatedScreenshot->scan_id,

@@ -36,6 +36,51 @@ return [
 
     'time_gap_minutes' => (int) env('SCANNING_TIME_GAP_MINUTES', 15),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Screen Clock (OCR)
+    |--------------------------------------------------------------------------
+    |
+    | The analyzer reads the clock in the taskbar with Tesseract and compares
+    | it with the capture time taken from the file name / file date.
+    |
+    */
+
+    'read_screen_clock' => (bool) env('SCANNING_READ_SCREEN_CLOCK', true),
+
+    'clock_mismatch_minutes' => (int) env('SCANNING_CLOCK_MISMATCH_MINUTES', 5),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Ignored Screen Regions
+    |--------------------------------------------------------------------------
+    |
+    | Normalized [x0, y0, x1, y1] areas whose changes do not count as activity,
+    | e.g. the taskbar clock and tray icons in the bottom-right corner.
+    |
+    */
+
+    'ignore_regions' => [
+        [0.70, 0.93, 1.0, 1.0],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mouse Jiggler Detection
+    |--------------------------------------------------------------------------
+    |
+    | A screenshot counts as "cursor only" when everything that changed fits in
+    | a few small areas (the old and new cursor position). Several of those in a
+    | row suggest the mouse is being moved without real work.
+    |
+    */
+
+    'cursor_max_regions' => 2,
+
+    'cursor_max_region_size' => 0.04,
+
+    'jiggler_min_streak' => (int) env('SCANNING_JIGGLER_MIN_STREAK', 2),
+
     'extract_chunk_size' => 25,
 
 ];

@@ -7,6 +7,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { screenshotUrl } from '@/lib/scans';
+import type { Box } from '@/types';
 
 export type ComparedImage = {
     scanId: number;
@@ -22,7 +23,7 @@ const props = defineProps<{
     description: string;
     current: ComparedImage | null;
     comparison: ComparedImage | null;
-    bbox: [number, number, number, number] | null;
+    boxes: Box[];
 }>();
 
 const emit = defineEmits<{
@@ -103,13 +104,14 @@ const emit = defineEmits<{
                             class="w-full rounded-md border"
                         />
                         <span
-                            v-if="bbox"
-                            class="pointer-events-none absolute border-2 border-red-500 bg-red-500/10"
+                            v-for="(box, index) in boxes"
+                            :key="index"
+                            class="pointer-events-none absolute min-h-2 min-w-2 border-2 border-red-500 bg-red-500/10"
                             :style="{
-                                left: `${bbox[0] * 100}%`,
-                                top: `${bbox[1] * 100}%`,
-                                width: `${(bbox[2] - bbox[0]) * 100}%`,
-                                height: `${(bbox[3] - bbox[1]) * 100}%`,
+                                left: `${box[0] * 100}%`,
+                                top: `${box[1] * 100}%`,
+                                width: `${(box[2] - box[0]) * 100}%`,
+                                height: `${(box[3] - box[1]) * 100}%`,
                             }"
                         />
                     </a>

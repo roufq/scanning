@@ -8,6 +8,8 @@ enum FindingType: string
     case Recycled = 'recycled';
     case Idle = 'idle';
     case TimeGap = 'time_gap';
+    case ClockMismatch = 'clock_mismatch';
+    case MouseJiggler = 'mouse_jiggler';
 
     /**
      * Get the display label for the finding type.
@@ -19,6 +21,8 @@ enum FindingType: string
             self::Recycled => 'Gambar daur ulang',
             self::Idle => 'Layar diam',
             self::TimeGap => 'Celah waktu',
+            self::ClockMismatch => 'Jam tidak cocok',
+            self::MouseJiggler => 'Hanya kursor bergerak',
         };
     }
 }

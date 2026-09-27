@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Scans\ScanAnalysisController;
 use App\Http\Controllers\Scans\ScanController;
+use App\Http\Controllers\Scans\ScanExportController;
 use App\Http\Controllers\Scans\ScanScreenshotController;
 use App\Http\Controllers\Scans\ScreenshotImageController;
 use App\Http\Controllers\Teams\TeamInvitationController;
@@ -23,6 +24,9 @@ Route::prefix('{current_team}')
             Route::get('scans/{scan}/screenshots/{screenshot}/{variant}', ScreenshotImageController::class)
                 ->whereIn('variant', ['image', 'thumbnail'])
                 ->name('scans.screenshots.image');
+            Route::get('scans/{scan}/export/{format}', ScanExportController::class)
+                ->whereIn('format', ['xlsx', 'pdf'])
+                ->name('scans.export');
         });
     });
 

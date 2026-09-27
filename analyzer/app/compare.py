@@ -8,6 +8,9 @@ from PIL import Image, ImageOps
 
 DIFF_WIDTH = 640
 
+# Grid cell size (in DIFF_WIDTH pixels) used to group changed pixels into regions.
+REGION_BLOCK = 8
+
 
 @dataclass
 class Change:
@@ -15,6 +18,7 @@ class Change:
     previous_id: int
     change_ratio: float
     bbox: list[float] | None
+    regions: list[dict]
 
 
 def load_grayscale(path: Path) -> np.ndarray:
@@ -32,29 +36,99 @@ def resize_to(array: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:
     return np.asarray(image, dtype=np.int16)
 
 
-def change_between(previous: np.ndarray, current: np.ndarray, pixel_threshold: int) -> tuple[float, list[float] | None]:
-    """Fraction of pixels that changed, plus the normalized bounding box [x0, y0, x1, y1] of the change."""
+def normalized_bbox(rows: np.ndarray, cols: np.ndarray, height: int, width: int) -> list[float]:
+    return [
+        round(cols.min() / width, 4),
+        round(rows.min() / height, 4),
+        round((cols.max() + 1) / width, 4),
+        round((rows.max() + 1) / height, 4),
+    ]
+
+
+def ignore_mask(shape: tuple[int, ...], ignore_regions: list[list[float]]) -> np.ndarray:
+    """True for pixels inside regions (e.g. the taskbar clock) whose changes should not count."""
+    height, width = shape
+    mask = np.zeros(shape, dtype=bool)
+
+    for x0, y0, x1, y1 in ignore_regions:
+        mask[int(y0 * height):int(np.ceil(y1 * height)), int(x0 * width):int(np.ceil(x1 * width))] = True
+
+    return mask
+
+
+def change_regions(mask: np.ndarray, max_regions: int = 10) -> list[dict]:
+    """Group changed pixels into connected regions on a coarse grid (8-connected), largest first."""
+    height, width = mask.shape
+    rows_count, cols_count = -(-height // REGION_BLOCK), -(-width // REGION_BLOCK)
+    padded = np.zeros((rows_count * REGION_BLOCK, cols_count * REGION_BLOCK), dtype=bool)
+    padded[:height, :width] = mask
+    counts = padded.reshape(rows_count, REGION_BLOCK, cols_count, REGION_BLOCK).sum(axis=(1, 3))
+
+    seen = np.zeros_like(counts, dtype=bool)
+    regions = []
+
+    for start in zip(*np.nonzero(counts)):
+        if seen[start]:
+            continue
+
+        stack, cells = [start], []
+        seen[start] = True
+
+        while stack:
+            row, col = stack.pop()
+            cells.append((row, col))
+
+            for d_row in (-1, 0, 1):
+                for d_col in (-1, 0, 1):
+                    neighbour = (row + d_row, col + d_col)
+
+                    if (0 <= neighbour[0] < rows_count and 0 <= neighbour[1] < cols_count
+                            and counts[neighbour] and not seen[neighbour]):
+                        seen[neighbour] = True
+                        stack.append(neighbour)
+
+        cell_rows = np.array([cell[0] for cell in cells])
+        cell_cols = np.array([cell[1] for cell in cells])
+        block_mask = np.zeros_like(counts, dtype=bool)
+        block_mask[cell_rows, cell_cols] = True
+        pixel_mask = np.repeat(np.repeat(block_mask, REGION_BLOCK, 0), REGION_BLOCK, 1)[:height, :width] & mask
+        pixel_rows, pixel_cols = np.nonzero(pixel_mask)
+
+        regions.append({
+            "bbox": normalized_bbox(pixel_rows, pixel_cols, height, width),
+            "ratio": round(float(pixel_mask.mean()), 6),
+        })
+
+    return sorted(regions, key=lambda region: region["ratio"], reverse=True)[:max_regions]
+
+
+def change_between(
+    previous: np.ndarray,
+    current: np.ndarray,
+    pixel_threshold: int,
+    ignore_regions: list[list[float]] | None = None,
+) -> tuple[float, list[float] | None, list[dict]]:
+    """Fraction of pixels that changed, the normalized bounding box [x0, y0, x1, y1] and the separate change regions."""
     mask = np.abs(current - previous) > pixel_threshold
+
+    if ignore_regions:
+        mask &= ~ignore_mask(mask.shape, ignore_regions)
+
     ratio = float(mask.mean())
 
     if not mask.any():
-        return ratio, None
+        return ratio, None, []
 
-    rows = np.flatnonzero(mask.any(axis=1))
-    cols = np.flatnonzero(mask.any(axis=0))
-    height, width = mask.shape
+    rows, cols = np.nonzero(mask)
 
-    bbox = [
-        round(cols[0] / width, 4),
-        round(rows[0] / height, 4),
-        round((cols[-1] + 1) / width, 4),
-        round((rows[-1] + 1) / height, 4),
-    ]
-
-    return ratio, bbox
+    return ratio, normalized_bbox(rows, cols, *mask.shape), change_regions(mask)
 
 
-def consecutive_changes(items: list[tuple[int, Path]], pixel_threshold: int) -> list[Change]:
+def consecutive_changes(
+    items: list[tuple[int, Path]],
+    pixel_threshold: int,
+    ignore_regions: list[list[float]] | None = None,
+) -> list[Change]:
     """Compare each screenshot with the one before it (items must already be in time order)."""
     changes: list[Change] = []
     previous_id: int | None = None
@@ -69,8 +143,8 @@ def consecutive_changes(items: list[tuple[int, Path]], pixel_threshold: int) -> 
 
         if previous is not None and previous_id is not None:
             comparable = current if current.shape == previous.shape else resize_to(current, previous.shape)
-            ratio, bbox = change_between(previous, comparable, pixel_threshold)
-            changes.append(Change(screenshot_id, previous_id, round(ratio, 6), bbox))
+            ratio, bbox, regions = change_between(previous, comparable, pixel_threshold, ignore_regions)
+            changes.append(Change(screenshot_id, previous_id, round(ratio, 6), bbox, regions))
 
         previous = current
         previous_id = screenshot_id

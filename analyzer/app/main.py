@@ -1,5 +1,7 @@
 """HTTP API used by the Laravel app. Run with: uvicorn app.main:app --port 8001"""
 
+from concurrent.futures import ThreadPoolExecutor
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -7,6 +9,8 @@ from app import compare, features
 from app.paths import PathNotAllowedError, resolve_allowed
 
 app = FastAPI(title="Screenshot Analyzer")
+
+EXTRACT_WORKERS = 4
 
 
 class ExtractItem(BaseModel):
@@ -17,6 +21,7 @@ class ExtractItem(BaseModel):
 
 class ExtractRequest(BaseModel):
     items: list[ExtractItem] = Field(max_length=500)
+    read_clock: bool = True
 
 
 class CompareScreenshot(BaseModel):
@@ -36,6 +41,7 @@ class CompareSettings(BaseModel):
     pixel_threshold: int = 25
     similar_distance: int = 4
     recycled_distance: int = 0
+    ignore_regions: list[list[float]] = []
 
 
 class CompareRequest(BaseModel):
@@ -51,20 +57,27 @@ def health() -> dict:
 
 @app.post("/extract")
 def extract(request: ExtractRequest) -> dict:
-    results = []
+    try:
+        jobs = [
+            (item.id, resolve_allowed(item.path), resolve_allowed(item.thumbnail_path) if item.thumbnail_path else None)
+            for item in request.items
+        ]
+    except PathNotAllowedError as exception:
+        raise HTTPException(status_code=422, detail=str(exception)) from exception
 
-    for item in request.items:
+    def run(job: tuple) -> dict:
+        screenshot_id, path, thumbnail = job
+
         try:
-            path = resolve_allowed(item.path)
-            thumbnail = resolve_allowed(item.thumbnail_path) if item.thumbnail_path else None
-            found = features.extract(path, thumbnail)
-            results.append({"id": item.id, **found.__dict__, "error": None})
-        except PathNotAllowedError as exception:
-            raise HTTPException(status_code=422, detail=str(exception)) from exception
-        except OSError as exception:
-            results.append({"id": item.id, "error": f"Gambar tidak dapat dibaca: {exception}"})
+            found = features.extract(path, thumbnail, with_clock=request.read_clock)
 
-    return {"results": results}
+            return {"id": screenshot_id, **found.__dict__, "error": None}
+        except OSError as exception:
+            return {"id": screenshot_id, "error": f"Gambar tidak dapat dibaca: {exception}"}
+
+    # OCR runs Tesseract as a subprocess, so threads give a real speed-up.
+    with ThreadPoolExecutor(max_workers=EXTRACT_WORKERS) as pool:
+        return {"results": list(pool.map(run, jobs))}
 
 
 @app.post("/compare")
@@ -75,7 +88,7 @@ def compare_screenshots(request: CompareRequest) -> dict:
         raise HTTPException(status_code=422, detail=str(exception)) from exception
 
     settings = request.settings
-    changes = compare.consecutive_changes(ordered, settings.pixel_threshold)
+    changes = compare.consecutive_changes(ordered, settings.pixel_threshold, settings.ignore_regions)
 
     return {
         "changes": [change.__dict__ for change in changes],

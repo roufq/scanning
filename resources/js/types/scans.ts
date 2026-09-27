@@ -9,10 +9,19 @@ export type ScreenshotActivity =
     | 'active'
     | 'low'
     | 'idle'
+    | 'cursor_only'
     | 'duplicate'
     | 'unknown';
 
-export type FindingType = 'exact_duplicate' | 'recycled' | 'idle' | 'time_gap';
+export type FindingType =
+    | 'exact_duplicate'
+    | 'recycled'
+    | 'idle'
+    | 'time_gap'
+    | 'clock_mismatch'
+    | 'mouse_jiggler';
+
+export type Box = [number, number, number, number];
 
 export type ScanListItem = {
     id: number;
@@ -45,7 +54,9 @@ export type ScreenshotItem = {
     takenAtSource: 'filename' | 'file_modified' | 'unknown';
     activity: ScreenshotActivity;
     changeRatio: number | null;
-    changeBbox: [number, number, number, number] | null;
+    changeBbox: Box | null;
+    changeRegions: Box[];
+    screenClock: string | null;
     similarityGroup: number | null;
     hasThumbnail: boolean;
     error: string | null;
@@ -57,6 +68,7 @@ export type FindingItem = {
     screenshotId: number;
     score: number | null;
     details: Record<string, unknown> | null;
+    description: string;
     related: {
         id: number;
         scanId: number;

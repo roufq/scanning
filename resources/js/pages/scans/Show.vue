@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { Head, router, usePage, usePoll } from '@inertiajs/vue3';
-import { AlertTriangle, LoaderCircle, RefreshCw, Trash2 } from '@lucide/vue';
+import {
+    AlertTriangle,
+    FileSpreadsheet,
+    FileText,
+    LoaderCircle,
+    RefreshCw,
+    Trash2,
+} from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import ScanTimeline from '@/components/scans/ScanTimeline.vue';
 import ScreenshotCompareDialog from '@/components/scans/ScreenshotCompareDialog.vue';
@@ -10,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import {
     activityBorders,
     activityColors,
+    exportUrl,
     formatDate,
     formatPercent,
     formatTime,
@@ -19,6 +27,7 @@ import {
 import { destroy, index, show } from '@/routes/scans';
 import { store as startAnalysis } from '@/routes/scans/analysis';
 import type {
+    Box,
     FindingItem,
     FindingType,
     ScanDetail,
@@ -74,12 +83,15 @@ const FINDING_TYPES: FindingType[] = [
     'exact_duplicate',
     'recycled',
     'idle',
+    'mouse_jiggler',
+    'clock_mismatch',
     'time_gap',
 ];
 const ACTIVITIES: ScreenshotActivity[] = [
     'active',
     'low',
     'idle',
+    'cursor_only',
     'duplicate',
     'unknown',
 ];
@@ -135,6 +147,42 @@ const activeShare = computed(() => {
     return measured === 0 ? null : (counts.active + counts.low) / measured;
 });
 
+const summaryCards = computed(() => {
+    const counts = findingCounts.value;
+    const alertCard = (label: string, value: number) => ({
+        label,
+        value,
+        alert: value > 0,
+        suffix: '',
+    });
+
+    return [
+        {
+            label: 'Total screenshot',
+            value: props.screenshots.length,
+            alert: false,
+            suffix: '',
+        },
+        {
+            label: 'Layar berubah (aktif)',
+            value: formatPercent(activeShare.value),
+            alert: false,
+            suffix: '',
+        },
+        alertCard('Layar diam', counts.idle),
+        alertCard('Hanya kursor bergerak', counts.mouse_jiggler),
+        alertCard('File identik', counts.exact_duplicate),
+        alertCard('Daur ulang (scan lama)', counts.recycled),
+        alertCard('Jam tidak cocok', counts.clock_mismatch),
+        {
+            label: 'Celah waktu',
+            value: counts.time_gap,
+            alert: false,
+            suffix: `(${gapMinutes.value} mnt)`,
+        },
+    ];
+});
+
 const timeRange = computed(() => {
     const times = props.screenshots
         .map((screenshot) => screenshot.takenAt)
@@ -179,28 +227,21 @@ const visibleScreenshots = computed(() =>
         : props.screenshots,
 );
 
-function describeFinding(finding: FindingItem): string {
-    const related = finding.related;
-
-    switch (finding.type) {
-        case 'exact_duplicate':
-            return `File identik dengan ${related?.name ?? 'screenshot lain'} (${formatTime(related?.takenAt ?? null)}).`;
-        case 'recycled':
-            return `${finding.details?.exact ? 'File sama persis' : 'Gambar hampir identik'} dengan screenshot dari scan ${formatDate(related?.scanDate ?? null)} (${formatTime(related?.takenAt ?? null)}).`;
-        case 'idle':
-            return `Layar hanya berubah ${formatPercent(Number(finding.details?.change_ratio ?? 0))} dibanding screenshot ${formatTime(related?.takenAt ?? null)}.`;
-        case 'time_gap':
-            return `Tidak ada screenshot selama ${finding.details?.minutes} menit (${formatTime(String(finding.details?.from))} – ${formatTime(String(finding.details?.to))}).`;
-    }
-}
-
 // Comparison dialog
 const dialogOpen = ref(false);
 const dialogTitle = ref('');
 const dialogDescription = ref('');
 const dialogCurrent = ref<ComparedImage | null>(null);
 const dialogComparison = ref<ComparedImage | null>(null);
-const dialogBbox = ref<[number, number, number, number] | null>(null);
+const dialogBoxes = ref<Box[]>([]);
+
+function changeBoxes(screenshot: ScreenshotItem): Box[] {
+    if (screenshot.changeRegions.length > 0) {
+        return screenshot.changeRegions;
+    }
+
+    return screenshot.changeBbox ? [screenshot.changeBbox] : [];
+}
 
 function asImage(screenshot: ScreenshotItem, caption: string): ComparedImage {
     return {
@@ -235,6 +276,10 @@ function openScreenshot(screenshot: ScreenshotItem) {
         screenshot.changeRatio === null
             ? 'Tidak ada screenshot sebelumnya untuk dibandingkan.'
             : `Perubahan layar ${formatPercent(screenshot.changeRatio)} dibanding screenshot sebelumnya.`;
+    if (screenshot.screenClock) {
+        dialogDescription.value += ` Jam di layar: ${screenshot.screenClock}.`;
+    }
+
     dialogCurrent.value = asImage(
         screenshot,
         `Screenshot ${formatTime(screenshot.takenAt)}`,
@@ -242,7 +287,7 @@ function openScreenshot(screenshot: ScreenshotItem) {
     dialogComparison.value = previous
         ? asImage(previous, `Sebelumnya ${formatTime(previous.takenAt)}`)
         : null;
-    dialogBbox.value = screenshot.changeBbox;
+    dialogBoxes.value = changeBoxes(screenshot);
     dialogOpen.value = true;
 }
 
@@ -256,7 +301,7 @@ function openFinding(finding: FindingItem) {
     const related = finding.related;
 
     dialogTitle.value = props.labels.finding[finding.type];
-    dialogDescription.value = describeFinding(finding);
+    dialogDescription.value = finding.description;
     dialogCurrent.value = asImage(
         screenshot,
         `Screenshot ${formatTime(screenshot.takenAt)}`,
@@ -272,7 +317,10 @@ function openFinding(finding: FindingItem) {
                       : `Dari scan ${formatDate(related.scanDate)} · ${formatTime(related.takenAt)}`,
           }
         : null;
-    dialogBbox.value = finding.type === 'idle' ? screenshot.changeBbox : null;
+    dialogBoxes.value =
+        finding.type === 'idle' || finding.type === 'mouse_jiggler'
+            ? changeBoxes(screenshot)
+            : [];
     dialogOpen.value = true;
 }
 
@@ -326,7 +374,22 @@ function remove() {
                 </p>
             </div>
 
-            <div class="flex gap-2">
+            <div class="flex flex-wrap gap-2">
+                <template v-if="scan.status === 'completed'">
+                    <Button variant="outline" size="sm" as-child>
+                        <a
+                            :href="exportUrl(teamSlug, scan.id, 'xlsx')"
+                            download
+                        >
+                            <FileSpreadsheet /> Excel
+                        </a>
+                    </Button>
+                    <Button variant="outline" size="sm" as-child>
+                        <a :href="exportUrl(teamSlug, scan.id, 'pdf')" download>
+                            <FileText /> PDF
+                        </a>
+                    </Button>
+                </template>
                 <Button
                     v-if="!scan.isRunning"
                     variant="outline"
@@ -409,71 +472,28 @@ function remove() {
 
         <!-- Completed -->
         <template v-if="scan.status === 'completed'">
-            <div class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                <div class="rounded-xl border p-4">
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div
+                    v-for="card in summaryCards"
+                    :key="card.label"
+                    class="rounded-xl border p-4"
+                >
                     <p class="text-xs text-muted-foreground">
-                        Total screenshot
-                    </p>
-                    <p class="text-2xl font-semibold tabular-nums">
-                        {{ screenshots.length }}
-                    </p>
-                </div>
-                <div class="rounded-xl border p-4">
-                    <p class="text-xs text-muted-foreground">
-                        Layar berubah (aktif)
-                    </p>
-                    <p class="text-2xl font-semibold tabular-nums">
-                        {{ formatPercent(activeShare) }}
-                    </p>
-                </div>
-                <div class="rounded-xl border p-4">
-                    <p class="text-xs text-muted-foreground">Layar diam</p>
-                    <p
-                        class="text-2xl font-semibold tabular-nums"
-                        :class="
-                            findingCounts.idle
-                                ? 'text-red-600 dark:text-red-400'
-                                : ''
-                        "
-                    >
-                        {{ findingCounts.idle }}
-                    </p>
-                </div>
-                <div class="rounded-xl border p-4">
-                    <p class="text-xs text-muted-foreground">File identik</p>
-                    <p
-                        class="text-2xl font-semibold tabular-nums"
-                        :class="
-                            findingCounts.exact_duplicate
-                                ? 'text-red-600 dark:text-red-400'
-                                : ''
-                        "
-                    >
-                        {{ findingCounts.exact_duplicate }}
-                    </p>
-                </div>
-                <div class="rounded-xl border p-4">
-                    <p class="text-xs text-muted-foreground">
-                        Daur ulang (scan lama)
+                        {{ card.label }}
                     </p>
                     <p
                         class="text-2xl font-semibold tabular-nums"
                         :class="
-                            findingCounts.recycled
-                                ? 'text-red-600 dark:text-red-400'
-                                : ''
+                            card.alert ? 'text-red-600 dark:text-red-400' : ''
                         "
                     >
-                        {{ findingCounts.recycled }}
-                    </p>
-                </div>
-                <div class="rounded-xl border p-4">
-                    <p class="text-xs text-muted-foreground">Celah waktu</p>
-                    <p class="text-2xl font-semibold tabular-nums">
-                        {{ findingCounts.time_gap }}
-                        <span class="text-sm font-normal text-muted-foreground"
-                            >({{ gapMinutes }} mnt)</span
+                        {{ card.value }}
+                        <span
+                            v-if="card.suffix"
+                            class="text-sm font-normal text-muted-foreground"
                         >
+                            {{ card.suffix }}
+                        </span>
                     </p>
                 </div>
             </div>
@@ -625,7 +645,7 @@ function remove() {
                             <p
                                 class="mt-1 truncate text-sm text-muted-foreground"
                             >
-                                {{ describeFinding(finding) }}
+                                {{ finding.description }}
                             </p>
                         </div>
                     </button>
@@ -763,9 +783,16 @@ function remove() {
                             <span
                                 class="flex items-center justify-between text-xs"
                             >
-                                <span class="font-medium tabular-nums">{{
-                                    formatTime(screenshot.takenAt)
-                                }}</span>
+                                <span class="font-medium tabular-nums">
+                                    {{ formatTime(screenshot.takenAt) }}
+                                    <span
+                                        v-if="screenshot.screenClock"
+                                        class="font-normal text-muted-foreground"
+                                        title="Jam yang terbaca di layar"
+                                    >
+                                        · layar {{ screenshot.screenClock }}
+                                    </span>
+                                </span>
                                 <span class="text-muted-foreground">{{
                                     formatPercent(screenshot.changeRatio)
                                 }}</span>
@@ -789,6 +816,6 @@ function remove() {
         :description="dialogDescription"
         :current="dialogCurrent"
         :comparison="dialogComparison"
-        :bbox="dialogBbox"
+        :boxes="dialogBoxes"
     />
 </template>

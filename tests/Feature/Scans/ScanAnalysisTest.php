@@ -89,6 +89,7 @@ test('analyzer results become activity levels and findings', function () {
             'width' => 1920,
             'height' => 1080,
             'file_size' => 1000,
+            'clock' => $item['id'] === $first->id ? ['time' => '08:00', 'ambiguous' => false, 'text' => '08:00'] : null,
             'error' => null,
         ])->all()]),
         '*/compare' => Http::response([
@@ -120,6 +121,8 @@ test('analyzer results become activity levels and findings', function () {
         ->and($low->fresh()->activity)->toBe(ScreenshotActivity::Low)
         ->and($afterGap->fresh()->activity)->toBe(ScreenshotActivity::Duplicate)
         ->and($copy->fresh()->activity)->toBe(ScreenshotActivity::Duplicate)
+        ->and($first->fresh()->screen_clock)->toBe('08:00')
+        ->and($idle->fresh()->screen_clock)->toBeNull()
         ->and($idle->fresh()->similarity_group)->toBe(1)
         ->and($idle->fresh()->thumbnail_path)->toBe("screenshots/{$scan->id}/thumbs/{$idle->id}.jpg");
 

@@ -23,11 +23,14 @@ use Illuminate\Support\Carbon;
  * @property TimestampSource $taken_at_source
  * @property string|null $md5
  * @property string|null $phash
+ * @property string|null $screen_clock
+ * @property bool $screen_clock_ambiguous
  * @property int|null $width
  * @property int|null $height
  * @property int $file_size
  * @property string|null $change_ratio
  * @property list<float>|null $change_bbox
+ * @property list<array{bbox: list<float>, ratio: float}>|null $change_regions
  * @property int|null $similarity_group
  * @property ScreenshotActivity|null $activity
  * @property string|null $error
@@ -37,7 +40,8 @@ use Illuminate\Support\Carbon;
  */
 #[Fillable([
     'scan_id', 'original_name', 'path', 'thumbnail_path', 'taken_at', 'taken_at_source', 'md5', 'phash',
-    'width', 'height', 'file_size', 'change_ratio', 'change_bbox', 'similarity_group', 'activity', 'error',
+    'screen_clock', 'screen_clock_ambiguous', 'width', 'height', 'file_size', 'change_ratio', 'change_bbox',
+    'change_regions', 'similarity_group', 'activity', 'error',
 ])]
 class Screenshot extends Model
 {
@@ -80,6 +84,8 @@ class Screenshot extends Model
             'taken_at_source' => TimestampSource::class,
             'change_ratio' => 'decimal:6',
             'change_bbox' => 'array',
+            'change_regions' => 'array',
+            'screen_clock_ambiguous' => 'boolean',
             'activity' => ScreenshotActivity::class,
         ];
     }

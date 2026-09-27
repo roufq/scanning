@@ -2,8 +2,9 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
+from app.clock import parse_time, tesseract_command
 from app.main import app
 
 client = TestClient(app)
@@ -117,3 +118,80 @@ def test_compare_groups_visually_similar_screenshots(tmp_path):
     groups = client.post("/compare", json={"screenshots": screenshots}).json()["groups"]
 
     assert groups == [[1, 2]]
+
+
+def desktop(path: Path, clock: str, cursor: tuple[int, int] | None = None) -> Path:
+    """A 1366x768 desktop with a dark taskbar that shows the clock in the bottom-right corner."""
+    image = Image.new("RGB", (1366, 768), "#2b5797")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 728, 1366, 768), fill="#101010")
+    draw.text((1280, 738), clock, fill="white", font=ImageFont.load_default(size=16))
+    draw.rectangle((200, 100, 1000, 600), fill="white")
+
+    if cursor:
+        draw.polygon([cursor, (cursor[0], cursor[1] + 18), (cursor[0] + 12, cursor[1] + 13)], fill="black")
+
+    image.save(path)
+
+    return path
+
+
+@pytest.mark.skipif(tesseract_command() is None, reason="Tesseract is not installed")
+def test_extract_reads_the_taskbar_clock(tmp_path):
+    image = desktop(tmp_path / "desk.png", "14:05")
+
+    result = client.post("/extract", json={"items": [{"id": 1, "path": str(image)}]}).json()["results"][0]
+
+    assert result["clock"]["time"] == "14:05"
+    assert result["clock"]["ambiguous"] is False
+
+
+def test_extract_can_skip_the_clock(tmp_path):
+    image = desktop(tmp_path / "desk.png", "14:05")
+
+    result = client.post("/extract", json={"items": [{"id": 1, "path": str(image)}], "read_clock": False}).json()
+
+    assert result["results"][0]["clock"] is None
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("14:05", {"time": "14:05", "ambiguous": False}),
+    ("8.15", {"time": "08:15", "ambiguous": True}),
+    ("8:15 PM", {"time": "20:15", "ambiguous": False}),
+    ("12:05 AM", {"time": "00:05", "ambiguous": False}),
+    ("27/09/2026 09:41", {"time": "09:41", "ambiguous": True}),
+    ("25:10", None),
+    ("", None),
+])
+def test_parse_time_normalizes_clock_text(text, expected):
+    parsed = parse_time(text)
+
+    assert (parsed and {"time": parsed["time"], "ambiguous": parsed["ambiguous"]}) == expected
+
+
+def test_compare_ignores_changes_inside_ignore_regions(tmp_path):
+    screenshots = extract_all([desktop(tmp_path / "1.png", "09:00"), desktop(tmp_path / "2.png", "09:05")])
+
+    plain = client.post("/compare", json={"screenshots": screenshots}).json()["changes"][0]
+    ignored = client.post("/compare", json={
+        "screenshots": screenshots,
+        "settings": {"ignore_regions": [[0.7, 0.93, 1.0, 1.0]]},
+    }).json()["changes"][0]
+
+    assert plain["change_ratio"] > 0
+    assert ignored["change_ratio"] == 0
+    assert ignored["regions"] == []
+
+
+def test_compare_reports_separate_change_regions_for_a_moved_cursor(tmp_path):
+    screenshots = extract_all([
+        desktop(tmp_path / "1.png", "09:00", cursor=(300, 200)),
+        desktop(tmp_path / "2.png", "09:00", cursor=(700, 450)),
+    ])
+
+    change = client.post("/compare", json={"screenshots": screenshots}).json()["changes"][0]
+
+    assert len(change["regions"]) == 2
+    for region in change["regions"]:
+        x0, y0, x1, y1 = region["bbox"]
+        assert x1 - x0 < 0.03 and y1 - y0 < 0.05

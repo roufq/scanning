@@ -63,6 +63,8 @@ class ExtractScreenshotFeatures implements ShouldQueue
                 'phash' => $result['phash'] ?? null,
                 'width' => $result['width'] ?? null,
                 'height' => $result['height'] ?? null,
+                'screen_clock' => $result['clock']['time'] ?? null,
+                'screen_clock_ambiguous' => $result['clock']['ambiguous'] ?? false,
                 'thumbnail_path' => $this->thumbnailPath($screenshot),
                 'error' => null,
             ] : ['error' => mb_substr($result['error'], 0, 255)]);

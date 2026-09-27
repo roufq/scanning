@@ -3,6 +3,8 @@
 use App\Actions\Scans\ParseScreenshotTimestamp;
 
 test('capture time is read from common screenshot file names', function (string $filename, ?string $expected) {
+    config(['app.timezone' => 'UTC']);
+
     $parsed = (new ParseScreenshotTimestamp)->handle($filename);
 
     expect($parsed?->format('Y-m-d H:i:s'))->toBe($expected);
