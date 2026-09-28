@@ -64,6 +64,7 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Fortify::loginView(fn (Request $request) => Inertia::render('auth/Login', [
             'canResetPassword' => Features::enabled(Features::resetPasswords()),
+            'canRegister' => ! config('fortify.invite_only'),
             'status' => $request->session()->get('status'),
             'teamInvitation' => $this->teamInvitation($request),
         ]));
@@ -83,6 +84,7 @@ class FortifyServiceProvider extends ServiceProvider
 
         Fortify::registerView(fn (Request $request) => Inertia::render('auth/Register', [
             'teamInvitation' => $this->teamInvitation($request),
+            'inviteOnly' => (bool) config('fortify.invite_only'),
         ]));
 
         Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/TwoFactorChallenge'));
@@ -117,7 +119,7 @@ class FortifyServiceProvider extends ServiceProvider
     /**
      * Get the pending team invitation context for auth pages.
      *
-     * @return array{code: string, teamName: string}|null
+     * @return array{code: string, teamName: string, email: string}|null
      */
     private function teamInvitation(Request $request): ?array
     {
@@ -143,6 +145,7 @@ class FortifyServiceProvider extends ServiceProvider
         return [
             'code' => $invitation->code,
             'teamName' => $invitation->team->name,
+            'email' => $invitation->email,
         ];
     }
 }

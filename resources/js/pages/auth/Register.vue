@@ -15,6 +15,7 @@ import type { TeamInvitationContext } from '@/types';
 defineProps<{
     passwordRules: string;
     teamInvitation?: TeamInvitationContext | null;
+    inviteOnly?: boolean;
 }>();
 
 defineOptions({
@@ -33,6 +34,15 @@ defineOptions({
         :invitation="teamInvitation"
         action="Register"
     />
+
+    <div
+        v-else-if="inviteOnly"
+        class="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-center text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+        data-test="invite-only-notice"
+    >
+        Pendaftaran hanya untuk email yang sudah diundang ke team. Gunakan link
+        dari email undangan, atau minta undangan dari admin team Anda.
+    </div>
 
     <Form
         v-bind="store.form()"
@@ -66,6 +76,7 @@ defineOptions({
                     autocomplete="email"
                     name="email"
                     placeholder="email@example.com"
+                    :default-value="teamInvitation?.email"
                 />
                 <InputError :message="errors.email" />
             </div>

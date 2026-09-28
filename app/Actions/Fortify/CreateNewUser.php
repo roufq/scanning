@@ -5,9 +5,11 @@ namespace App\Actions\Fortify;
 use App\Actions\Teams\CreateTeam;
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
+use App\Models\TeamInvitation;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Validator as ValidatorInstance;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 
 class CreateNewUser implements CreatesNewUsers
@@ -29,7 +31,11 @@ class CreateNewUser implements CreatesNewUsers
         Validator::make($input, [
             ...$this->profileRules(),
             'password' => $this->passwordRules(),
-        ])->validate();
+        ])->after(function (ValidatorInstance $validator) use ($input) {
+            if (config('fortify.invite_only') && ! $this->hasPendingInvitation((string) ($input['email'] ?? ''))) {
+                $validator->errors()->add('email', 'Pendaftaran hanya untuk email yang sudah diundang ke team. Minta undangan dari admin team Anda.');
+            }
+        })->validate();
 
         return DB::transaction(function () use ($input) {
             $user = User::create([
@@ -42,5 +48,19 @@ class CreateNewUser implements CreatesNewUsers
 
             return $user;
         });
+    }
+
+    /**
+     * Whether the email address has an unaccepted, unexpired team invitation.
+     */
+    private function hasPendingInvitation(string $email): bool
+    {
+        return TeamInvitation::query()
+            ->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])
+            ->whereNull('accepted_at')
+            ->where(fn ($query) => $query
+                ->whereNull('expires_at')
+                ->orWhere('expires_at', '>=', now()))
+            ->exists();
     }
 }

@@ -11,8 +11,11 @@ use App\Http\Controllers\Scans\ScreenshotImageController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
-Route::inertia('/', 'Welcome')->name('home');
+Route::get('/', fn () => Inertia::render('Welcome', [
+    'canRegister' => ! config('fortify.invite_only'),
+]))->name('home');
 
 Route::prefix('{current_team}')
     ->middleware(['auth', 'verified', EnsureTeamMembership::class])

@@ -174,4 +174,16 @@ return [
         ]),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Invite-Only Registration
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, only email addresses with a pending team invitation can
+    | create an account. Everyone else must be invited by a team owner/admin.
+    |
+    */
+
+    'invite_only' => (bool) env('INVITE_ONLY_REGISTRATION', true),
+
 ];
