@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, FolderGit2, LayoutGrid, ScanSearch } from '@lucide/vue';
+import {
+    BookOpen,
+    FolderGit2,
+    LayoutGrid,
+    ScanSearch,
+    SlidersHorizontal,
+} from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
@@ -17,6 +23,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { edit as scanSettingsEdit } from '@/routes/scan-settings';
 import { index as scansIndex } from '@/routes/scans';
 import type { NavItem } from '@/types';
 
@@ -38,6 +45,13 @@ const mainNavItems = computed<NavItem[]>(() => [
             ? scansIndex(page.props.currentTeam.slug).url
             : '/',
         icon: ScanSearch,
+    },
+    {
+        title: 'Pengaturan Scan',
+        href: page.props.currentTeam
+            ? scanSettingsEdit(page.props.currentTeam.slug).url
+            : '/',
+        icon: SlidersHorizontal,
     },
 ]);
 

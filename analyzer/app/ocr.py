@@ -1,4 +1,4 @@
-"""Read the clock shown on screen (taskbar / menu bar) with Tesseract OCR."""
+"""Read text from screenshots with Tesseract OCR: the on-screen clock and the title/tab bar."""
 
 import os
 import re
@@ -92,3 +92,31 @@ def read_clock(image: Image.Image) -> dict | None:
             return found
 
     return None
+
+
+# The strip where window titles, browser tabs and the address bar usually are.
+TITLE_REGION = (0.0, 0.0, 1.0, 0.12)
+
+
+def read_title(image: Image.Image, max_length: int = 300) -> str | None:
+    """OCR the top strip of the screen (title bar, browser tabs, address bar)."""
+    command = tesseract_command()
+
+    if command is None:
+        return None
+
+    import pytesseract
+
+    pytesseract.pytesseract.tesseract_cmd = command
+    width, height = image.size
+    x0, y0, x1, y1 = TITLE_REGION
+    region = image.crop((int(x0 * width), int(y0 * height), int(x1 * width), int(y1 * height)))
+    gray = ImageOps.grayscale(region)
+    gray = gray.resize((gray.width * 2, gray.height * 2), Image.Resampling.LANCZOS)
+
+    if sum(gray.getdata()) / (gray.width * gray.height) < 128:
+        gray = ImageOps.invert(gray)
+
+    text = " ".join(pytesseract.image_to_string(ImageOps.autocontrast(gray), config="--psm 6").split())
+
+    return text[:max_length] or None

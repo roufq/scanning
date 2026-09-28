@@ -81,6 +81,88 @@ return [
 
     'jiggler_min_streak' => (int) env('SCANNING_JIGGLER_MIN_STREAK', 2),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Application Categories (AI + keywords)
+    |--------------------------------------------------------------------------
+    |
+    | Screenshots are sorted into categories by matching keywords in the
+    | title/tab bar (OCR) first, then by the CLIP model when no keyword
+    | matches. A non-productive category with an AI confidence of at least
+    | ai_min_confidence becomes a "non-work application" finding.
+    |
+    | These are the defaults a team starts with; each team can edit its own
+    | categories in the scan settings page.
+    |
+    */
+
+    'classify_screenshots' => (bool) env('SCANNING_CLASSIFY', true),
+
+    'ai_min_confidence' => (float) env('SCANNING_AI_MIN_CONFIDENCE', 0.5),
+
+    'default_categories' => [
+        [
+            'name' => 'Spreadsheet',
+            'prompt' => 'a screenshot of a spreadsheet application like Excel or Google Sheets',
+            'keywords' => ['excel', 'google sheets', 'spreadsheet', '.xlsx', '.xls', '.csv'],
+            'is_productive' => true,
+        ],
+        [
+            'name' => 'Dokumen',
+            'prompt' => 'a screenshot of a text document editor like Word or Google Docs',
+            'keywords' => ['word', 'google docs', '.docx', '.doc', '.pdf', 'acrobat'],
+            'is_productive' => true,
+        ],
+        [
+            'name' => 'Kode / IDE',
+            'prompt' => 'a screenshot of a code editor or programming IDE',
+            'keywords' => ['visual studio', 'vscode', 'phpstorm', 'intellij', 'github', 'gitlab', 'terminal', 'powershell'],
+            'is_productive' => true,
+        ],
+        [
+            'name' => 'Email & kalender',
+            'prompt' => 'a screenshot of an email inbox or a calendar',
+            'keywords' => ['outlook', 'gmail', 'inbox', 'thunderbird'],
+            'is_productive' => true,
+        ],
+        [
+            'name' => 'Rapat online',
+            'prompt' => 'a screenshot of a video conference meeting with participants',
+            'keywords' => ['zoom', 'google meet', 'microsoft teams'],
+            'is_productive' => true,
+        ],
+        [
+            'name' => 'Aplikasi bisnis',
+            'prompt' => 'a screenshot of a business web application dashboard with tables and charts',
+            'keywords' => ['dashboard', 'erp', 'crm', 'admin'],
+            'is_productive' => true,
+        ],
+        [
+            'name' => 'Video / streaming',
+            'prompt' => 'a screenshot of a YouTube or Netflix video player',
+            'keywords' => ['youtube', 'netflix', 'vidio', 'twitch', 'disney+', 'prime video'],
+            'is_productive' => false,
+        ],
+        [
+            'name' => 'Game',
+            'prompt' => 'a screenshot of a video game',
+            'keywords' => ['steam', 'roblox', 'minecraft', 'epic games', 'mobile legends'],
+            'is_productive' => false,
+        ],
+        [
+            'name' => 'Media sosial',
+            'prompt' => 'a screenshot of a social media feed like Facebook, Instagram, TikTok or Twitter',
+            'keywords' => ['facebook', 'instagram', 'tiktok', 'twitter', 'x.com', 'reddit'],
+            'is_productive' => false,
+        ],
+        [
+            'name' => 'Belanja online',
+            'prompt' => 'a screenshot of an online shopping website with products and prices',
+            'keywords' => ['shopee', 'tokopedia', 'lazada', 'bukalapak', 'blibli', 'amazon'],
+            'is_productive' => false,
+        ],
+    ],
+
     'extract_chunk_size' => 25,
 
 ];

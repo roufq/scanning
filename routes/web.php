@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Scans\ScanAnalysisController;
+use App\Http\Controllers\Scans\ScanCategoryController;
 use App\Http\Controllers\Scans\ScanController;
 use App\Http\Controllers\Scans\ScanExportController;
 use App\Http\Controllers\Scans\ScanScreenshotController;
+use App\Http\Controllers\Scans\ScanSettingsController;
 use App\Http\Controllers\Scans\ScreenshotImageController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\EnsureTeamMembership;
@@ -27,6 +29,10 @@ Route::prefix('{current_team}')
             Route::get('scans/{scan}/export/{format}', ScanExportController::class)
                 ->whereIn('format', ['xlsx', 'pdf'])
                 ->name('scans.export');
+
+            Route::get('scan-settings', [ScanSettingsController::class, 'edit'])->name('scan-settings.edit');
+            Route::put('scan-settings', [ScanSettingsController::class, 'update'])->name('scan-settings.update');
+            Route::resource('scan-categories', ScanCategoryController::class)->only(['store', 'update', 'destroy']);
         });
     });
 

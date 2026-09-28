@@ -4,6 +4,8 @@ namespace App\Jobs;
 
 use App\Enums\ScanStatus;
 use App\Models\Scan;
+use App\Models\ScanCategory;
+use App\Models\ScanSetting;
 use App\Models\Screenshot;
 use App\Services\ScreenshotAnalyzer;
 use Illuminate\Bus\Batchable;
@@ -44,12 +46,23 @@ class ExtractScreenshotFeatures implements ShouldQueue
 
         $disk = Storage::disk('local');
         $screenshots = Screenshot::whereKey($this->screenshotIds)->get()->keyBy('id');
+        $teamId = (int) Scan::whereKey($this->scanId)->value('team_id');
+        $settings = ScanSetting::valuesFor($teamId);
+        $labels = $settings['classify_screenshots']
+            ? array_values(ScanCategory::where('team_id', $teamId)->where('is_enabled', true)->get(['id', 'prompt'])
+                ->map(fn (ScanCategory $category) => ['id' => $category->id, 'prompt' => $category->prompt])
+                ->all())
+            : [];
 
         $results = $analyzer->extract(array_values($screenshots->map(fn (Screenshot $screenshot) => [
             'id' => $screenshot->id,
             'path' => $disk->path($screenshot->path),
             'thumbnail_path' => $disk->path($this->thumbnailPath($screenshot)),
-        ])->all()));
+        ])->all()), [
+            'read_clock' => (bool) $settings['read_screen_clock'],
+            'read_title' => (bool) $settings['classify_screenshots'],
+            'labels' => $labels,
+        ]);
 
         foreach ($results as $result) {
             $screenshot = $screenshots->get($result['id']);
@@ -65,6 +78,8 @@ class ExtractScreenshotFeatures implements ShouldQueue
                 'height' => $result['height'] ?? null,
                 'screen_clock' => $result['clock']['time'] ?? null,
                 'screen_clock_ambiguous' => $result['clock']['ambiguous'] ?? false,
+                'window_title' => isset($result['title']) ? mb_substr($result['title'], 0, 300) : null,
+                'category_scores' => $result['categories'] ?? null,
                 'thumbnail_path' => $this->thumbnailPath($screenshot),
                 'error' => null,
             ] : ['error' => mb_substr($result['error'], 0, 255)]);

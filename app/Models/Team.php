@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
@@ -27,6 +28,8 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, User> $members
  * @property-read Collection<int, Employee> $employees
  * @property-read Collection<int, Scan> $scans
+ * @property-read Collection<int, ScanCategory> $scanCategories
+ * @property-read ScanSetting|null $scanSetting
  */
 #[Fillable(['name', 'slug', 'is_personal'])]
 class Team extends Model
@@ -115,6 +118,26 @@ class Team extends Model
     public function scans(): HasMany
     {
         return $this->hasMany(Scan::class);
+    }
+
+    /**
+     * Get the application categories used to classify screenshots.
+     *
+     * @return HasMany<ScanCategory, $this>
+     */
+    public function scanCategories(): HasMany
+    {
+        return $this->hasMany(ScanCategory::class);
+    }
+
+    /**
+     * Get the team's analysis setting overrides.
+     *
+     * @return HasOne<ScanSetting, $this>
+     */
+    public function scanSetting(): HasOne
+    {
+        return $this->hasOne(ScanSetting::class);
     }
 
     /**

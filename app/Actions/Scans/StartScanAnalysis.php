@@ -6,6 +6,7 @@ use App\Enums\ScanStatus;
 use App\Jobs\CompareScanScreenshots;
 use App\Jobs\ExtractScreenshotFeatures;
 use App\Models\Scan;
+use App\Models\ScanCategory;
 use Illuminate\Bus\Batch;
 use Illuminate\Support\Facades\Bus;
 use Throwable;
@@ -17,6 +18,8 @@ class StartScanAnalysis
      */
     public function handle(Scan $scan): void
     {
+        ScanCategory::ensureDefaultsFor($scan->team);
+
         $scan->update([
             'status' => ScanStatus::Queued,
             'processed_count' => 0,

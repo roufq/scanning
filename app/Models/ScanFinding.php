@@ -84,6 +84,9 @@ class ScanFinding extends Model
                 substr((string) ($details['from'] ?? ''), 11, 5),
                 substr((string) ($details['to'] ?? ''), 11, 5),
             ),
+            FindingType::NonWork => ($details['source'] ?? null) === 'keyword'
+                ? sprintf('Judul jendela/tab memuat "%s" → kategori %s.', $details['keyword'] ?? '', $details['category'] ?? '-')
+                : sprintf('AI mengenali layar sebagai %s (keyakinan %s).', $details['category'] ?? '-', $this->percent((float) ($details['confidence'] ?? 0))),
             FindingType::ClockMismatch => sprintf(
                 'Jam di layar %s, tetapi waktu %s %s (selisih %d menit).',
                 $details['screen_clock'] ?? '-',

@@ -4,7 +4,8 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw, ImageFont
 
-from app.clock import parse_time, tesseract_command
+from app.ocr import parse_time, tesseract_command
+from app import classifier
 from app.main import app
 
 client = TestClient(app)
@@ -195,3 +196,67 @@ def test_compare_reports_separate_change_regions_for_a_moved_cursor(tmp_path):
     for region in change["regions"]:
         x0, y0, x1, y1 = region["bbox"]
         assert x1 - x0 < 0.03 and y1 - y0 < 0.05
+
+
+def browser(path: Path, tab: str) -> Path:
+    """A browser window with the page title in the tab strip."""
+    image = Image.new("RGB", (1366, 768), "white")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 1366, 40), fill="#dee1e6")
+    draw.rectangle((10, 6, 360, 40), fill="white")
+    draw.text((24, 12), tab, fill="black", font=ImageFont.load_default(size=18))
+    image.save(path)
+
+    return path
+
+
+def spreadsheet(path: Path) -> Path:
+    image = Image.new("RGB", (1366, 768), "white")
+    draw = ImageDraw.Draw(image)
+
+    for row in range(28):
+        for column in range(10):
+            draw.rectangle((40 + column * 128, 60 + row * 24, 168 + column * 128, 84 + row * 24), outline="#c0c0c0")
+            draw.text((46 + column * 128, 64 + row * 24), str((row + 3) * (column + 7) * 113), fill="black")
+
+    image.save(path)
+
+    return path
+
+
+@pytest.mark.skipif(tesseract_command() is None, reason="Tesseract is not installed")
+def test_extract_reads_the_title_bar_when_asked(tmp_path):
+    image = browser(tmp_path / "tab.png", "Lagu santai - YouTube")
+
+    without = client.post("/extract", json={"items": [{"id": 1, "path": str(image)}]}).json()["results"][0]
+    with_title = client.post("/extract", json={"items": [{"id": 1, "path": str(image)}], "read_title": True}).json()["results"][0]
+
+    assert without["title"] is None
+    assert "youtube" in with_title["title"].lower()
+
+
+@pytest.mark.skipif(not classifier.is_installed(), reason="torch / open_clip are not installed")
+def test_extract_ranks_categories_with_the_ai_classifier(tmp_path):
+    image = spreadsheet(tmp_path / "sheet.png")
+    labels = [
+        {"id": 10, "prompt": "a screenshot of a spreadsheet"},
+        {"id": 20, "prompt": "a screenshot of a video game"},
+        {"id": 30, "prompt": "a screenshot of a social media feed"},
+    ]
+
+    result = client.post("/extract", json={"items": [{"id": 1, "path": str(image)}], "labels": labels}).json()["results"][0]
+
+    assert [category["id"] for category in result["categories"]][0] == 10
+    assert result["categories"][0]["score"] > 0.5
+
+
+def test_extract_skips_classification_without_labels(tmp_path):
+    image = spreadsheet(tmp_path / "sheet.png")
+
+    result = client.post("/extract", json={"items": [{"id": 1, "path": str(image)}]}).json()["results"][0]
+
+    assert result["categories"] is None
+
+
+def test_health_reports_whether_the_classifier_is_installed():
+    assert client.get("/health").json() == {"status": "ok", "classifier": classifier.is_installed()}

@@ -10,6 +10,7 @@ enum FindingType: string
     case TimeGap = 'time_gap';
     case ClockMismatch = 'clock_mismatch';
     case MouseJiggler = 'mouse_jiggler';
+    case NonWork = 'non_work';
 
     /**
      * Get the display label for the finding type.
@@ -23,6 +24,7 @@ enum FindingType: string
             self::TimeGap => 'Celah waktu',
             self::ClockMismatch => 'Jam tidak cocok',
             self::MouseJiggler => 'Hanya kursor bergerak',
+            self::NonWork => 'Aplikasi non-kerja',
         };
     }
 }

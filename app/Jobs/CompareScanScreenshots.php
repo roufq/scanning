@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Actions\Scans\ApplyScanComparison;
 use App\Enums\ScanStatus;
 use App\Models\Scan;
+use App\Models\ScanSetting;
 use App\Models\Screenshot;
 use App\Services\ScreenshotAnalyzer;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -57,7 +58,9 @@ class CompareScanScreenshots implements ShouldQueue
             ])
             ->all();
 
-        $applyComparison->handle($this->scan, $analyzer->compare(array_values($screenshots), array_values($references)));
+        $settings = ScanSetting::valuesFor($this->scan->team_id);
+
+        $applyComparison->handle($this->scan, $analyzer->compare(array_values($screenshots), array_values($references), $settings));
     }
 
     /**

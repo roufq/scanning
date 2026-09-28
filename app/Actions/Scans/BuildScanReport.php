@@ -25,7 +25,7 @@ class BuildScanReport
     {
         $scan->loadMissing('employee:id,name');
 
-        $screenshots = $scan->screenshots()->chronological()->get();
+        $screenshots = $scan->screenshots()->with('category:id,name,is_productive')->chronological()->get();
         $byId = $screenshots->keyBy('id');
         $findings = $scan->findings()
             ->with(['relatedScreenshot:id,scan_id,original_name,taken_at,thumbnail_path', 'relatedScreenshot.scan:id,work_date,created_at'])
@@ -58,6 +58,17 @@ class BuildScanReport
             $summary[] = ['Temuan: '.$type->label(), $findings->where('type', $type)->count()];
         }
 
+        $categorized = $screenshots->whereNotNull('category_id');
+
+        if ($categorized->isNotEmpty()) {
+            $productive = $categorized->filter(fn (Screenshot $screenshot) => $screenshot->category?->is_productive === true)->count();
+            $summary[] = ['Screenshot di aplikasi kerja', number_format($productive / $categorized->count() * 100, 1, ',', '.').'% dari '.$categorized->count().' yang dikenali'];
+
+            foreach ($categorized->groupBy(fn (Screenshot $screenshot) => (string) $screenshot->category?->name) as $name => $group) {
+                $summary[] = ['Kategori: '.$name, $group->count()];
+            }
+        }
+
         $summary[] = ['Dianalisis pada', $scan->analyzed_at?->format('d-m-Y H:i') ?? '-'];
 
         return [
@@ -82,6 +93,13 @@ class BuildScanReport
                 ($screenshot->activity ?? ScreenshotActivity::Unknown)->label(),
                 $screenshot->change_ratio === null ? null : round((float) $screenshot->change_ratio * 100, 2),
                 $screenshot->similarity_group,
+                $screenshot->category?->name,
+                match ($screenshot->category_source) {
+                    'keyword' => 'Kata kunci: '.$screenshot->category_keyword,
+                    'ai' => 'AI '.round((float) $screenshot->category_confidence * 100).'%',
+                    default => null,
+                },
+                $screenshot->window_title,
                 $screenshot->error,
             ])->all()),
         ];

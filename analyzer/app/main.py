@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from app import compare, features
+from app import classifier, compare, features
 from app.paths import PathNotAllowedError, resolve_allowed
 
 app = FastAPI(title="Screenshot Analyzer")
@@ -19,9 +19,17 @@ class ExtractItem(BaseModel):
     thumbnail_path: str | None = None
 
 
+class Label(BaseModel):
+    id: int
+    prompt: str
+
+
 class ExtractRequest(BaseModel):
     items: list[ExtractItem] = Field(max_length=500)
     read_clock: bool = True
+    read_title: bool = False
+    # Categories for the AI classifier; empty means "do not classify".
+    labels: list[Label] = []
 
 
 class CompareScreenshot(BaseModel):
@@ -52,7 +60,7 @@ class CompareRequest(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    return {"status": "ok", "classifier": classifier.is_installed()}
 
 
 @app.post("/extract")
@@ -65,19 +73,38 @@ def extract(request: ExtractRequest) -> dict:
     except PathNotAllowedError as exception:
         raise HTTPException(status_code=422, detail=str(exception)) from exception
 
-    def run(job: tuple) -> dict:
+    labels = [label.model_dump() for label in request.labels]
+    classify = bool(labels) and classifier.is_installed()
+
+    def run(job: tuple) -> tuple[dict, object]:
         screenshot_id, path, thumbnail = job
 
         try:
-            found = features.extract(path, thumbnail, with_clock=request.read_clock)
+            found = features.extract(
+                path,
+                thumbnail,
+                with_clock=request.read_clock,
+                with_title=request.read_title,
+                with_preview=classify,
+            )
 
-            return {"id": screenshot_id, **found.__dict__, "error": None}
+            return {"id": screenshot_id, **found.to_dict(), "categories": None, "error": None}, found.preview
         except OSError as exception:
-            return {"id": screenshot_id, "error": f"Gambar tidak dapat dibaca: {exception}"}
+            return {"id": screenshot_id, "error": f"Gambar tidak dapat dibaca: {exception}"}, None
 
     # OCR runs Tesseract as a subprocess, so threads give a real speed-up.
     with ThreadPoolExecutor(max_workers=EXTRACT_WORKERS) as pool:
-        return {"results": list(pool.map(run, jobs))}
+        extracted = list(pool.map(run, jobs))
+
+    classifiable = [(result, preview) for result, preview in extracted if preview is not None]
+
+    if classifiable:
+        rankings = classifier.classify([preview for _, preview in classifiable], labels)
+
+        for (result, _), ranking in zip(classifiable, rankings):
+            result["categories"] = ranking
+
+    return {"results": [result for result, _ in extracted]}
 
 
 @app.post("/compare")

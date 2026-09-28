@@ -26,7 +26,7 @@ class ScanExport implements Export, WithMultipleSheets
             ),
             new ReportSheet(
                 'Semua screenshot',
-                ['Waktu', 'Sumber waktu', 'File', 'Jam di layar', 'Status', 'Perubahan layar (%)', 'Grup mirip', 'Error'],
+                ['Waktu', 'Sumber waktu', 'File', 'Jam di layar', 'Status', 'Perubahan layar (%)', 'Grup mirip', 'Kategori', 'Dasar kategori', 'Judul jendela (OCR)', 'Error'],
                 $this->report['screenshots'],
             ),
         ];

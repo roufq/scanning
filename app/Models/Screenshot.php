@@ -25,6 +25,12 @@ use Illuminate\Support\Carbon;
  * @property string|null $phash
  * @property string|null $screen_clock
  * @property bool $screen_clock_ambiguous
+ * @property string|null $window_title
+ * @property list<array{id: int, score: float}>|null $category_scores
+ * @property int|null $category_id
+ * @property string|null $category_source
+ * @property string|null $category_confidence
+ * @property string|null $category_keyword
  * @property int|null $width
  * @property int|null $height
  * @property int $file_size
@@ -37,10 +43,12 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Scan $scan
+ * @property-read ScanCategory|null $category
  */
 #[Fillable([
     'scan_id', 'original_name', 'path', 'thumbnail_path', 'taken_at', 'taken_at_source', 'md5', 'phash',
-    'screen_clock', 'screen_clock_ambiguous', 'width', 'height', 'file_size', 'change_ratio', 'change_bbox',
+    'screen_clock', 'screen_clock_ambiguous', 'window_title', 'category_scores', 'category_id', 'category_source',
+    'category_confidence', 'category_keyword', 'width', 'height', 'file_size', 'change_ratio', 'change_bbox',
     'change_regions', 'similarity_group', 'activity', 'error',
 ])]
 class Screenshot extends Model
@@ -56,6 +64,16 @@ class Screenshot extends Model
     public function scan(): BelongsTo
     {
         return $this->belongsTo(Scan::class);
+    }
+
+    /**
+     * Get the application category the screenshot was sorted into.
+     *
+     * @return BelongsTo<ScanCategory, $this>
+     */
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(ScanCategory::class);
     }
 
     /**
@@ -86,6 +104,8 @@ class Screenshot extends Model
             'change_bbox' => 'array',
             'change_regions' => 'array',
             'screen_clock_ambiguous' => 'boolean',
+            'category_scores' => 'array',
+            'category_confidence' => 'decimal:4',
             'activity' => ScreenshotActivity::class,
         ];
     }

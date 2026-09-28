@@ -7,6 +7,8 @@ use App\Enums\ScanStatus;
 use App\Enums\ScreenshotActivity;
 use App\Enums\TimestampSource;
 use App\Models\Scan;
+use App\Models\ScanCategory;
+use App\Models\ScanSetting;
 use App\Models\Screenshot;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +19,20 @@ use Illuminate\Support\Facades\DB;
  */
 class ApplyScanComparison
 {
+    /**
+     * The team's effective scanning settings for the scan being processed.
+     *
+     * @var array<string, mixed>
+     */
+    protected array $settings = [];
+
+    /**
+     * The team's enabled application categories, keyed by id.
+     *
+     * @var Collection<int, ScanCategory>
+     */
+    protected Collection $categories;
+
     /**
      * Store the analyzer's comparison result as screenshot activity levels and findings.
      *
@@ -29,6 +45,9 @@ class ApplyScanComparison
      */
     public function handle(Scan $scan, array $result): void
     {
+        $this->settings = ScanSetting::valuesFor($scan->team_id);
+        $this->categories = ScanCategory::where('team_id', $scan->team_id)->where('is_enabled', true)->get()->keyBy('id');
+
         /** @var Collection<int, Screenshot> $screenshots */
         $screenshots = Screenshot::query()
             ->where('scan_id', $scan->id)
@@ -66,6 +85,17 @@ class ApplyScanComparison
                 $findings[] = $this->finding($scan, $screenshot->id, FindingType::Recycled, $match['reference_id'], 1 - $match['distance'] / 64, [
                     'exact' => $match['exact'],
                     'distance' => $match['distance'],
+                ]);
+            }
+
+            $this->categorize($screenshot);
+
+            if ($screenshot->category_id !== null && ! $this->categories[$screenshot->category_id]->is_productive) {
+                $findings[] = $this->finding($scan, $screenshot->id, FindingType::NonWork, null, (float) $screenshot->category_confidence, [
+                    'category' => $this->categories[$screenshot->category_id]->name,
+                    'source' => $screenshot->category_source,
+                    'keyword' => $screenshot->category_keyword,
+                    'confidence' => (float) $screenshot->category_confidence,
                 ]);
             }
 
@@ -122,8 +152,8 @@ class ApplyScanComparison
             $isCopy => ScreenshotActivity::Duplicate,
             $change === null => ScreenshotActivity::Unknown,
             $this->isCursorOnly($change) => ScreenshotActivity::CursorOnly,
-            $change['change_ratio'] < config('scanning.idle_change_ratio') => ScreenshotActivity::Idle,
-            $change['change_ratio'] < config('scanning.low_change_ratio') => ScreenshotActivity::Low,
+            $change['change_ratio'] < $this->settings['idle_change_ratio'] => ScreenshotActivity::Idle,
+            $change['change_ratio'] < $this->settings['low_change_ratio'] => ScreenshotActivity::Low,
             default => ScreenshotActivity::Active,
         };
     }
@@ -136,11 +166,11 @@ class ApplyScanComparison
     protected function isCursorOnly(array $change): bool
     {
         $regions = $change['regions'] ?? [];
-        $maxSize = (float) config('scanning.cursor_max_region_size');
+        $maxSize = (float) $this->settings['cursor_max_region_size'];
 
         return $regions !== []
-            && count($regions) <= config('scanning.cursor_max_regions')
-            && $change['change_ratio'] < config('scanning.low_change_ratio')
+            && count($regions) <= $this->settings['cursor_max_regions']
+            && $change['change_ratio'] < $this->settings['low_change_ratio']
             && collect($regions)->every(fn (array $region) => $region['bbox'][2] - $region['bbox'][0] <= $maxSize
                 && $region['bbox'][3] - $region['bbox'][1] <= $maxSize * 1.5);
     }
@@ -152,7 +182,7 @@ class ApplyScanComparison
      */
     protected function resolveCursorStreaks(Collection $screenshots): void
     {
-        $minimumStreak = (int) config('scanning.jiggler_min_streak');
+        $minimumStreak = (int) $this->settings['jiggler_min_streak'];
 
         $screenshots->values()
             ->chunkWhile(fn (Screenshot $screenshot, int $index, Collection $chunk) => ($screenshot->activity === ScreenshotActivity::CursorOnly)
@@ -163,6 +193,46 @@ class ApplyScanComparison
                     $screenshot->activity = ScreenshotActivity::Idle;
                 }
             });
+    }
+
+    /**
+     * Sort the screenshot into an application category: a keyword in the title bar wins,
+     * otherwise the AI's best guess when it is confident enough.
+     */
+    protected function categorize(Screenshot $screenshot): void
+    {
+        $screenshot->forceFill([
+            'category_id' => null,
+            'category_source' => null,
+            'category_confidence' => null,
+            'category_keyword' => null,
+        ]);
+
+        if ($screenshot->window_title !== null) {
+            foreach ($this->categories as $category) {
+                if ($keyword = $category->matchingKeyword($screenshot->window_title)) {
+                    $screenshot->forceFill([
+                        'category_id' => $category->id,
+                        'category_source' => 'keyword',
+                        'category_confidence' => '1',
+                        'category_keyword' => $keyword,
+                    ]);
+
+                    return;
+                }
+            }
+        }
+
+        $best = collect($screenshot->category_scores ?? [])
+            ->first(fn (array $score) => $this->categories->has($score['id']));
+
+        if ($best !== null && $best['score'] >= $this->settings['ai_min_confidence']) {
+            $screenshot->forceFill([
+                'category_id' => $best['id'],
+                'category_source' => 'ai',
+                'category_confidence' => (string) $best['score'],
+            ]);
+        }
     }
 
     /**
@@ -183,7 +253,7 @@ class ApplyScanComparison
         // A clock without AM/PM may be a 12-hour clock, so 08:15 on screen also matches 20:15.
         $minutes = $screenshot->screen_clock_ambiguous ? $wrap($difference, 720) : $wrap($difference, 1440);
 
-        if (abs($minutes) <= config('scanning.clock_mismatch_minutes')) {
+        if (abs($minutes) <= $this->settings['clock_mismatch_minutes']) {
             return null;
         }
 
@@ -210,7 +280,7 @@ class ApplyScanComparison
             if ($previous?->taken_at !== null) {
                 $minutes = (int) round($previous->taken_at->diffInMinutes($screenshot->taken_at));
 
-                if ($minutes > config('scanning.time_gap_minutes')) {
+                if ($minutes > $this->settings['time_gap_minutes']) {
                     $findings[] = $this->finding($scan, $screenshot->id, FindingType::TimeGap, $previous->id, $minutes, [
                         'minutes' => $minutes,
                         'from' => $previous->taken_at->toDateTimeString(),

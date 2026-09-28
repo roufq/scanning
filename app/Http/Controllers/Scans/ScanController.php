@@ -131,6 +131,7 @@ class ScanController extends Controller
     protected function screenshots(Scan $scan): array
     {
         return $scan->screenshots()
+            ->with('category:id,name,is_productive')
             ->chronological()
             ->get()
             ->map(fn (Screenshot $screenshot) => [
@@ -143,6 +144,14 @@ class ScanController extends Controller
                 'changeBbox' => $screenshot->change_bbox,
                 'changeRegions' => collect($screenshot->change_regions ?? [])->pluck('bbox')->all(),
                 'screenClock' => $screenshot->screen_clock,
+                'windowTitle' => $screenshot->window_title,
+                'category' => $screenshot->category ? [
+                    'name' => $screenshot->category->name,
+                    'isProductive' => $screenshot->category->is_productive,
+                    'source' => $screenshot->category_source,
+                    'confidence' => $screenshot->category_confidence === null ? null : (float) $screenshot->category_confidence,
+                    'keyword' => $screenshot->category_keyword,
+                ] : null,
                 'similarityGroup' => $screenshot->similarity_group,
                 'hasThumbnail' => $screenshot->thumbnail_path !== null,
                 'error' => $screenshot->error,

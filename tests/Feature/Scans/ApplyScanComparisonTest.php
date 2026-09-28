@@ -5,7 +5,9 @@ use App\Enums\FindingType;
 use App\Enums\ScreenshotActivity;
 use App\Enums\TimestampSource;
 use App\Models\Scan;
+use App\Models\ScanCategory;
 use App\Models\ScanFinding;
+use App\Models\ScanSetting;
 use App\Models\Screenshot;
 
 beforeEach(function () {
@@ -130,4 +132,76 @@ test('duplicated screenshots are not also reported as idle', function () {
 
     expect($b->fresh()->activity)->toBe(ScreenshotActivity::Duplicate)
         ->and(ScanFinding::pluck('type')->all())->toBe([FindingType::ExactDuplicate]);
+});
+
+test('a keyword in the window title decides the category before the AI', function () {
+    $youtube = ScanCategory::factory()->nonProductive()->for($this->scan->team)->create(['name' => 'Video', 'keywords' => ['youtube']]);
+    $spreadsheet = ScanCategory::factory()->for($this->scan->team)->create(['name' => 'Spreadsheet', 'keywords' => ['excel']]);
+    [$screenshot] = screenshotsAt($this->scan, ['08:00:00'], [
+        'window_title' => 'Lagu santai - YouTube - Google Chrome',
+        'category_scores' => [['id' => $spreadsheet->id, 'score' => 0.9]],
+    ]);
+
+    applyChanges($this->scan, []);
+
+    $screenshot->refresh();
+    $finding = ScanFinding::where('type', FindingType::NonWork)->sole();
+
+    expect($screenshot->category_id)->toBe($youtube->id)
+        ->and($screenshot->category_source)->toBe('keyword')
+        ->and($screenshot->category_keyword)->toBe('youtube')
+        ->and($finding->screenshot_id)->toBe($screenshot->id)
+        ->and($finding->description())->toBe('Judul jendela/tab memuat "youtube" → kategori Video.');
+});
+
+test('keywords only match whole words', function () {
+    ScanCategory::factory()->nonProductive()->for($this->scan->team)->create(['keywords' => ['game']]);
+    [$screenshot] = screenshotsAt($this->scan, ['08:00:00'], ['window_title' => 'Gameplan Q4.xlsx - Excel']);
+
+    applyChanges($this->scan, []);
+
+    expect($screenshot->fresh()->category_id)->toBeNull();
+});
+
+test('a confident AI guess for a non-work category is reported', function (float $score, bool $reported) {
+    $game = ScanCategory::factory()->nonProductive()->for($this->scan->team)->create(['name' => 'Game']);
+    config(['scanning.ai_min_confidence' => 0.5]);
+    [$screenshot] = screenshotsAt($this->scan, ['08:00:00'], [
+        'category_scores' => [['id' => $game->id, 'score' => $score]],
+    ]);
+
+    applyChanges($this->scan, []);
+
+    expect($screenshot->fresh()->category_id)->toBe($reported ? $game->id : null)
+        ->and(ScanFinding::where('type', FindingType::NonWork)->exists())->toBe($reported);
+
+    if ($reported) {
+        expect(ScanFinding::sole()->description())->toBe('AI mengenali layar sebagai Game (keyakinan 81,0%).');
+    }
+})->with([
+    'confident' => [0.81, true],
+    'unsure' => [0.42, false],
+]);
+
+test('work categories and disabled categories never become findings', function () {
+    $excel = ScanCategory::factory()->for($this->scan->team)->create();
+    $disabledGame = ScanCategory::factory()->nonProductive()->disabled()->for($this->scan->team)->create(['keywords' => ['steam']]);
+    [$work, $disabled] = screenshotsAt($this->scan, ['08:00:00', '08:05:00']);
+    $work->update(['category_scores' => [['id' => $excel->id, 'score' => 0.95]]]);
+    $disabled->update(['window_title' => 'Steam', 'category_scores' => [['id' => $disabledGame->id, 'score' => 0.99]]]);
+
+    applyChanges($this->scan, []);
+
+    expect($work->fresh()->category_id)->toBe($excel->id)
+        ->and($disabled->fresh()->category_id)->toBeNull()
+        ->and(ScanFinding::where('type', FindingType::NonWork)->count())->toBe(0);
+});
+
+test('team settings override the configured thresholds', function () {
+    ScanSetting::create(['team_id' => $this->scan->team_id, 'values' => ['time_gap_minutes' => 4]]);
+    screenshotsAt($this->scan, ['08:00:00', '08:05:00']);
+
+    applyChanges($this->scan, []);
+
+    expect(ScanFinding::where('type', FindingType::TimeGap)->count())->toBe(1);
 });

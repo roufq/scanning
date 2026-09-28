@@ -144,7 +144,16 @@ const undated = computed(() =>
                                     }"
                                     :aria-label="`${cell.screenshot.takenAt} ${labels.activity[cell.screenshot.activity]}`"
                                     @click="emit('select', cell.screenshot)"
-                                />
+                                >
+                                    <span
+                                        v-if="
+                                            cell.screenshot.category &&
+                                            !cell.screenshot.category
+                                                .isProductive
+                                        "
+                                        class="absolute -top-2 left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-red-600 ring-1 ring-background"
+                                    />
+                                </button>
                             </TooltipTrigger>
                             <TooltipContent>
                                 <p class="font-medium">
@@ -164,6 +173,9 @@ const undated = computed(() =>
                                             cell.screenshot.changeRatio,
                                         )
                                     }}
+                                </p>
+                                <p v-if="cell.screenshot.category">
+                                    {{ cell.screenshot.category.name }}
                                 </p>
                             </TooltipContent>
                         </Tooltip>

@@ -85,6 +85,7 @@ const FINDING_TYPES: FindingType[] = [
     'idle',
     'mouse_jiggler',
     'clock_mismatch',
+    'non_work',
     'time_gap',
 ];
 const ACTIVITIES: ScreenshotActivity[] = [
@@ -174,6 +175,7 @@ const summaryCards = computed(() => {
         alertCard('File identik', counts.exact_duplicate),
         alertCard('Daur ulang (scan lama)', counts.recycled),
         alertCard('Jam tidak cocok', counts.clock_mismatch),
+        alertCard('Aplikasi non-kerja', counts.non_work),
         {
             label: 'Celah waktu',
             value: counts.time_gap,
@@ -182,6 +184,45 @@ const summaryCards = computed(() => {
         },
     ];
 });
+
+const categoryBreakdown = computed(() => {
+    const byName = new Map<
+        string,
+        { name: string; isProductive: boolean; count: number }
+    >();
+
+    for (const screenshot of props.screenshots) {
+        if (screenshot.category) {
+            const entry = byName.get(screenshot.category.name) ?? {
+                name: screenshot.category.name,
+                isProductive: screenshot.category.isProductive,
+                count: 0,
+            };
+            entry.count++;
+            byName.set(entry.name, entry);
+        }
+    }
+
+    const rows = [...byName.values()].sort((a, b) => b.count - a.count);
+    const total = rows.reduce((sum, row) => sum + row.count, 0);
+    const productive = rows
+        .filter((row) => row.isProductive)
+        .reduce((sum, row) => sum + row.count, 0);
+
+    return { rows, total, productiveShare: total ? productive / total : null };
+});
+
+function describeCategory(screenshot: ScreenshotItem): string {
+    const category = screenshot.category;
+
+    if (!category) {
+        return '';
+    }
+
+    return category.source === 'keyword'
+        ? ` Kategori: ${category.name} (kata kunci "${category.keyword}").`
+        : ` Kategori: ${category.name} (AI ${formatPercent(category.confidence)}).`;
+}
 
 const timeRange = computed(() => {
     const times = props.screenshots
@@ -279,6 +320,8 @@ function openScreenshot(screenshot: ScreenshotItem) {
     if (screenshot.screenClock) {
         dialogDescription.value += ` Jam di layar: ${screenshot.screenClock}.`;
     }
+
+    dialogDescription.value += describeCategory(screenshot);
 
     dialogCurrent.value = asImage(
         screenshot,
@@ -521,6 +564,10 @@ function remove() {
                             />
                             Celah waktu
                         </span>
+                        <span class="flex items-center gap-1.5">
+                            <span class="size-2 rounded-full bg-red-600" />
+                            Aplikasi non-kerja
+                        </span>
                     </div>
                 </div>
                 <ScanTimeline
@@ -529,6 +576,57 @@ function remove() {
                     :labels="labels"
                     @select="openScreenshot"
                 />
+            </section>
+
+            <section
+                v-if="categoryBreakdown.total > 0"
+                class="flex flex-col gap-3 rounded-xl border p-4"
+            >
+                <div
+                    class="flex flex-wrap items-baseline justify-between gap-2"
+                >
+                    <h2 class="font-medium">Kategori aplikasi</h2>
+                    <p class="text-sm text-muted-foreground">
+                        {{ formatPercent(categoryBreakdown.productiveShare) }}
+                        dari {{ categoryBreakdown.total }} screenshot yang
+                        dikenali berada di aplikasi kerja
+                    </p>
+                </div>
+                <div class="grid gap-2 sm:grid-cols-2">
+                    <div
+                        v-for="row in categoryBreakdown.rows"
+                        :key="row.name"
+                        class="flex items-center gap-3 text-sm"
+                    >
+                        <span class="w-36 shrink-0 truncate" :title="row.name">
+                            {{ row.name }}
+                        </span>
+                        <div
+                            class="h-2 flex-1 overflow-hidden rounded-full bg-muted"
+                        >
+                            <div
+                                class="h-full"
+                                :class="
+                                    row.isProductive
+                                        ? 'bg-emerald-500'
+                                        : 'bg-red-500'
+                                "
+                                :style="{
+                                    width: `${(row.count / categoryBreakdown.total) * 100}%`,
+                                }"
+                            />
+                        </div>
+                        <span
+                            class="w-8 text-right text-muted-foreground tabular-nums"
+                        >
+                            {{ row.count }}
+                        </span>
+                    </div>
+                </div>
+                <p class="text-xs text-muted-foreground">
+                    Hijau = kategori kerja, merah = non-kerja. Atur kategori dan
+                    kata kunci di halaman Pengaturan Scan.
+                </p>
             </section>
 
             <section class="flex flex-col gap-4">
@@ -796,6 +894,17 @@ function remove() {
                                 <span class="text-muted-foreground">{{
                                     formatPercent(screenshot.changeRatio)
                                 }}</span>
+                            </span>
+                            <span
+                                v-if="screenshot.category"
+                                class="w-fit truncate rounded px-1.5 py-0.5 text-xs"
+                                :class="
+                                    screenshot.category.isProductive
+                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                        : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+                                "
+                            >
+                                {{ screenshot.category.name }}
                             </span>
                             <span
                                 class="truncate text-xs text-muted-foreground"

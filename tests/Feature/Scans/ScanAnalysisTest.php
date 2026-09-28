@@ -90,6 +90,8 @@ test('analyzer results become activity levels and findings', function () {
             'height' => 1080,
             'file_size' => 1000,
             'clock' => $item['id'] === $first->id ? ['time' => '08:00', 'ambiguous' => false, 'text' => '08:00'] : null,
+            'title' => $item['id'] === $first->id ? 'Laporan Q3.xlsx - Excel' : null,
+            'categories' => null,
             'error' => null,
         ])->all()]),
         '*/compare' => Http::response([
@@ -113,9 +115,15 @@ test('analyzer results become activity levels and findings', function () {
         && collect($request['screenshots'])->pluck('id')->all() === [$first->id, $idle->id, $low->id, $afterGap->id, $copy->id]
         && collect($request['references'])->pluck('id')->all() === [$oldScreenshot->id]);
 
+    Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/extract')
+        && $request['read_title'] === true
+        && collect($request['labels'])->pluck('prompt')->all() === collect(config('scanning.default_categories'))->pluck('prompt')->all());
+
     $scan = $this->scan->fresh();
     expect($scan->status)->toBe(ScanStatus::Completed)
         ->and($scan->processed_count)->toBe(5)
+        ->and($first->fresh()->window_title)->toBe('Laporan Q3.xlsx - Excel')
+        ->and($first->fresh()->category->name)->toBe('Spreadsheet')
         ->and($first->fresh()->activity)->toBe(ScreenshotActivity::Unknown)
         ->and($idle->fresh()->activity)->toBe(ScreenshotActivity::Idle)
         ->and($low->fresh()->activity)->toBe(ScreenshotActivity::Low)

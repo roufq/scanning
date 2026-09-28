@@ -19,7 +19,8 @@ export type FindingType =
     | 'idle'
     | 'time_gap'
     | 'clock_mismatch'
-    | 'mouse_jiggler';
+    | 'mouse_jiggler'
+    | 'non_work';
 
 export type Box = [number, number, number, number];
 
@@ -57,6 +58,14 @@ export type ScreenshotItem = {
     changeBbox: Box | null;
     changeRegions: Box[];
     screenClock: string | null;
+    windowTitle: string | null;
+    category: {
+        name: string;
+        isProductive: boolean;
+        source: 'keyword' | 'ai' | null;
+        confidence: number | null;
+        keyword: string | null;
+    } | null;
     similarityGroup: number | null;
     hasThumbnail: boolean;
     error: string | null;
@@ -90,4 +99,25 @@ export type Paginated<T> = {
     total: number;
     prev_page_url: string | null;
     next_page_url: string | null;
+};
+
+export type ScanCategoryItem = {
+    id: number;
+    name: string;
+    prompt: string;
+    keywords: string[];
+    isProductive: boolean;
+    isEnabled: boolean;
+};
+
+export type ScanSettingsValues = {
+    idle_change_ratio: number;
+    low_change_ratio: number;
+    time_gap_minutes: number;
+    clock_mismatch_minutes: number;
+    jiggler_min_streak: number;
+    similar_distance: number;
+    read_screen_clock: boolean;
+    classify_screenshots: boolean;
+    ai_min_confidence: number;
 };
