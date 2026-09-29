@@ -16,7 +16,7 @@ defineOptions({
     layout: {
         breadcrumbs: [
             {
-                title: 'Profile settings',
+                title: 'Pengaturan profil',
                 href: edit(),
             },
         ],
@@ -28,15 +28,15 @@ const user = computed(() => page.props.auth.user);
 </script>
 
 <template>
-    <Head title="Profile settings" />
+    <Head title="Pengaturan profil" />
 
-    <h1 class="sr-only">Profile settings</h1>
+    <h1 class="sr-only">Pengaturan profil</h1>
 
     <div class="flex flex-col space-y-6">
         <Heading
             variant="small"
-            title="Profile"
-            description="Update your name and email address"
+            title="Profil"
+            description="Ubah nama dan alamat email Anda"
         />
 
         <Form
@@ -45,7 +45,7 @@ const user = computed(() => page.props.auth.user);
             v-slot="{ errors, processing }"
         >
             <div class="grid gap-2">
-                <Label for="name">Name</Label>
+                <Label for="name">Nama</Label>
                 <Input
                     id="name"
                     class="mt-1 block w-full"
@@ -53,13 +53,13 @@ const user = computed(() => page.props.auth.user);
                     :default-value="user.name"
                     required
                     autocomplete="name"
-                    placeholder="Full name"
+                    placeholder="Nama lengkap"
                 />
                 <InputError class="mt-2" :message="errors.name" />
             </div>
 
             <div class="grid gap-2">
-                <Label for="email">Email address</Label>
+                <Label for="email">Alamat email</Label>
                 <Input
                     id="email"
                     type="email"
@@ -68,20 +68,20 @@ const user = computed(() => page.props.auth.user);
                     :default-value="user.email"
                     required
                     autocomplete="username"
-                    placeholder="Email address"
+                    placeholder="Alamat email"
                 />
                 <InputError class="mt-2" :message="errors.email" />
             </div>
 
             <div v-if="page.props.mustVerifyEmail && !user.email_verified_at">
                 <p class="-mt-4 text-sm text-muted-foreground">
-                    Your email address is unverified.
+                    Email Anda belum diverifikasi.
                     <Link
                         :href="send()"
                         as="button"
                         class="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
                     >
-                        Click here to re-send the verification email.
+                        Klik di sini untuk mengirim ulang email verifikasi.
                     </Link>
                 </p>
 
@@ -89,13 +89,13 @@ const user = computed(() => page.props.auth.user);
                     v-if="page.props.status === 'verification-link-sent'"
                     class="mt-2 text-sm font-medium text-green-600"
                 >
-                    A new verification link has been sent to your email address.
+                    Link verifikasi baru sudah dikirim ke email Anda.
                 </div>
             </div>
 
             <div class="flex items-center gap-4">
                 <Button :disabled="processing" data-test="update-profile-button"
-                    >Save</Button
+                    >Simpan</Button
                 >
             </div>
         </Form>

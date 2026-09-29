@@ -20,14 +20,14 @@ defineProps<{
 
 defineOptions({
     layout: {
-        title: 'Create an account',
-        description: 'Enter your details below to create your account',
+        title: 'Buat akun',
+        description: 'Isi data berikut untuk membuat akun',
     },
 });
 </script>
 
 <template>
-    <Head title="Register" />
+    <Head title="Daftar" />
 
     <TeamInvitationAlert
         v-if="teamInvitation"
@@ -52,7 +52,7 @@ defineOptions({
     >
         <div class="grid gap-6">
             <div class="grid gap-2">
-                <Label for="name">Name</Label>
+                <Label for="name">Nama</Label>
                 <Input
                     id="name"
                     type="text"
@@ -61,13 +61,13 @@ defineOptions({
                     :tabindex="1"
                     autocomplete="name"
                     name="name"
-                    placeholder="Full name"
+                    placeholder="Nama lengkap"
                 />
                 <InputError :message="errors.name" />
             </div>
 
             <div class="grid gap-2">
-                <Label for="email">Email address</Label>
+                <Label for="email">Alamat email</Label>
                 <Input
                     id="email"
                     type="email"
@@ -96,14 +96,14 @@ defineOptions({
             </div>
 
             <div class="grid gap-2">
-                <Label for="password_confirmation">Confirm password</Label>
+                <Label for="password_confirmation">Konfirmasi password</Label>
                 <PasswordInput
                     id="password_confirmation"
                     required
                     :tabindex="4"
                     autocomplete="new-password"
                     name="password_confirmation"
-                    placeholder="Confirm password"
+                    placeholder="Konfirmasi password"
                     :passwordrules="passwordRules"
                 />
                 <InputError :message="errors.password_confirmation" />
@@ -117,12 +117,12 @@ defineOptions({
                 data-test="register-user-button"
             >
                 <Spinner v-if="processing" />
-                Create account
+                Buat akun
             </Button>
         </div>
 
         <div class="text-center text-sm text-muted-foreground">
-            Already have an account?
+            Sudah punya akun?
             <TextLink
                 :href="
                     teamInvitation
@@ -137,7 +137,7 @@ defineOptions({
                 :tabindex="6"
                 data-test="team-invitation-login-link"
             >
-                Log in
+                Masuk
             </TextLink>
         </div>
     </Form>

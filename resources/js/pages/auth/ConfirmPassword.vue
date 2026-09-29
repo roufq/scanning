@@ -14,24 +14,24 @@ import PasskeyVerify from '@/components/PasskeyVerify.vue';
 
 defineOptions({
     layout: {
-        title: 'Confirm password',
+        title: 'Konfirmasi password',
         description:
-            'This is a secure area of the application. Please confirm your password before continuing.',
+            'Ini area aman. Silakan konfirmasi password Anda sebelum melanjutkan.',
     },
 });
 </script>
 
 <template>
-    <Head title="Confirm password" />
+    <Head title="Konfirmasi password" />
 
     <PasskeyVerify
         :routes="{
             options: confirmOptions(),
             submit: confirmStore(),
         }"
-        label="Confirm with passkey"
-        loading-label="Confirming..."
-        separator="Or confirm with password"
+        label="Konfirmasi dengan passkey"
+        loading-label="Mengonfirmasi..."
+        separator="Atau konfirmasi dengan password"
     />
 
     <Form
@@ -61,7 +61,7 @@ defineOptions({
                     data-test="confirm-password-button"
                 >
                     <Spinner v-if="processing" />
-                    Confirm password
+                    Konfirmasi password
                 </Button>
             </div>
         </div>

@@ -1,6 +1,10 @@
 <?php
 
+use App\Enums\FindingType;
 use App\Enums\TeamRole;
+use App\Models\Employee;
+use App\Models\Scan;
+use App\Models\Screenshot;
 use App\Models\Team;
 use App\Models\TeamInvitation;
 use App\Models\User;
@@ -132,4 +136,27 @@ test('dashboard does not include or delete other users invitations', function ()
     $this->assertDatabaseHas('team_invitations', [
         'id' => $invitation->id,
     ]);
+});
+
+test('dashboard summarizes the team scans and employees to review', function () {
+    $user = User::factory()->create();
+    $team = $user->currentTeam;
+    $employee = Employee::factory()->for($team)->create(['name' => 'Budi']);
+    $scan = Scan::factory()->completed()->for($employee)->create();
+    $screenshot = Screenshot::factory()->for($scan)->create();
+    $scan->findings()->create(['screenshot_id' => $screenshot->id, 'type' => FindingType::Idle, 'score' => 0.001]);
+    $scan->findings()->create(['screenshot_id' => $screenshot->id, 'type' => FindingType::TimeGap, 'score' => 30]);
+    Scan::factory()->completed()->create();
+
+    $this->actingAs($user)
+        ->get(route('dashboard', $team))
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Dashboard')
+            ->where('overview.stats.scansThisMonth', 1)
+            ->where('overview.stats.screenshotsThisMonth', 1)
+            ->where('overview.stats.findingsThisMonth', 1)
+            ->has('overview.recentScans', 1)
+            ->where('overview.recentScans.0.employee', 'Budi')
+            ->where('overview.employeesToReview', [['name' => 'Budi', 'findings' => 1, 'scans' => 1]])
+        );
 });

@@ -2,7 +2,6 @@
 import { Head, router, useHttp, usePage } from '@inertiajs/vue3';
 import { ImageUp, LoaderCircle, Trash2, UploadCloud } from '@lucide/vue';
 import { computed, ref } from 'vue';
-import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -201,156 +200,222 @@ async function submit() {
 <template>
     <Head title="Scan baru" />
 
-    <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4">
-        <Heading
-            title="Scan baru"
-            description="Isi nama karyawan, lalu unggah screenshot hasil aplikasi pemantau (JPG, JPEG, atau PNG)."
-        />
+    <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 md:p-6">
+        <div class="space-y-1">
+            <h1 class="text-2xl font-bold tracking-tight">Scan baru</h1>
+            <p class="text-sm text-muted-foreground">
+                Tiga langkah singkat. Analisis berjalan otomatis setelah
+                screenshot terunggah.
+            </p>
+        </div>
 
-        <form class="flex flex-col gap-6" @submit.prevent="submit">
-            <div class="grid gap-4 sm:grid-cols-[2fr_1fr]">
-                <div class="grid gap-2">
-                    <Label for="employee_name">Nama karyawan</Label>
-                    <Input
-                        id="employee_name"
-                        v-model="scanForm.employee_name"
-                        list="employee-names"
-                        autocomplete="off"
-                        placeholder="Contoh: Budi Santoso"
-                        :disabled="isBusy || scanId !== null"
-                        required
-                    />
-                    <datalist id="employee-names">
-                        <option
-                            v-for="name in employees"
-                            :key="name"
-                            :value="name"
+        <form class="flex flex-col gap-4" @submit.prevent="submit">
+            <section class="rounded-2xl border bg-card p-5 shadow-sm">
+                <div class="mb-4 flex items-center gap-3">
+                    <span
+                        class="flex size-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground"
+                        >1</span
+                    >
+                    <div>
+                        <h2 class="font-semibold">Siapa karyawannya?</h2>
+                        <p class="text-xs text-muted-foreground">
+                            Ketik nama baru atau pilih nama yang pernah dipakai.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-[2fr_1fr]">
+                    <div class="grid gap-2">
+                        <Label for="employee_name">Nama karyawan</Label>
+                        <Input
+                            id="employee_name"
+                            v-model="scanForm.employee_name"
+                            list="employee-names"
+                            autocomplete="off"
+                            placeholder="Contoh: Budi Santoso"
+                            :disabled="isBusy || scanId !== null"
+                            required
                         />
-                    </datalist>
-                    <InputError :message="scanForm.errors.employee_name" />
+                        <datalist id="employee-names">
+                            <option
+                                v-for="name in employees"
+                                :key="name"
+                                :value="name"
+                            />
+                        </datalist>
+                        <InputError :message="scanForm.errors.employee_name" />
+                    </div>
+
+                    <div class="grid gap-2">
+                        <Label for="work_date">Tanggal kerja (opsional)</Label>
+                        <Input
+                            id="work_date"
+                            v-model="scanForm.work_date"
+                            type="date"
+                            :disabled="isBusy || scanId !== null"
+                        />
+                        <InputError :message="scanForm.errors.work_date" />
+                    </div>
+                </div>
+            </section>
+
+            <section class="rounded-2xl border bg-card p-5 shadow-sm">
+                <div class="mb-4 flex items-center gap-3">
+                    <span
+                        class="flex size-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground"
+                        >2</span
+                    >
+                    <div>
+                        <h2 class="font-semibold">Pilih screenshot</h2>
+                        <p class="text-xs text-muted-foreground">
+                            Format JPG, JPEG, atau PNG. Jam diambil dari nama
+                            file, misalnya <code>SS_20260927_081500.png</code>.
+                        </p>
+                    </div>
                 </div>
 
-                <div class="grid gap-2">
-                    <Label for="work_date">Tanggal kerja (opsional)</Label>
-                    <Input
-                        id="work_date"
-                        v-model="scanForm.work_date"
-                        type="date"
-                        :disabled="isBusy || scanId !== null"
-                    />
-                    <InputError :message="scanForm.errors.work_date" />
-                </div>
-            </div>
-
-            <div
-                class="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed p-10 text-center transition-colors"
-                :class="
-                    isDragging
-                        ? 'border-primary bg-primary/5'
-                        : 'border-muted-foreground/25'
-                "
-                @dragover.prevent="isDragging = true"
-                @dragleave.prevent="isDragging = false"
-                @drop.prevent="onDrop"
-            >
-                <UploadCloud class="size-10 text-muted-foreground" />
-                <div>
-                    <p class="font-medium">Tarik & lepas screenshot di sini</p>
-                    <p class="text-sm text-muted-foreground">
-                        Maksimal {{ limits.maxScreenshots }} file,
-                        {{ formatBytes(limits.maxFileSizeKb * 1024) }} per file
-                    </p>
-                </div>
-                <Button
-                    type="button"
-                    variant="outline"
-                    :disabled="isBusy || scanId !== null"
-                    @click="fileInput?.click()"
-                >
-                    <ImageUp /> Pilih file
-                </Button>
-                <input
-                    ref="fileInput"
-                    type="file"
-                    class="hidden"
-                    multiple
-                    accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                    @change="
-                        addFiles(($event.target as HTMLInputElement).files)
+                <div
+                    class="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-colors"
+                    :class="
+                        isDragging
+                            ? 'border-primary bg-primary/5'
+                            : 'border-primary/25 bg-accent/40'
                     "
-                />
-            </div>
-
-            <div
-                v-if="files.length > 0"
-                class="flex items-center justify-between rounded-lg border px-4 py-3 text-sm"
-            >
-                <span>
-                    <strong>{{ files.length }}</strong> screenshot dipilih ·
-                    {{ formatBytes(totalSize) }}
-                </span>
-                <Button
-                    v-if="scanId === null"
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    :disabled="isBusy"
-                    @click="clearFiles"
+                    @dragover.prevent="isDragging = true"
+                    @dragleave.prevent="isDragging = false"
+                    @drop.prevent="onDrop"
                 >
-                    <Trash2 /> Kosongkan
-                </Button>
-            </div>
-
-            <div
-                v-if="rejected.length > 0"
-                class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
-            >
-                <p class="font-medium">{{ rejected.length }} file dilewati:</p>
-                <ul class="mt-1 max-h-32 list-inside list-disc overflow-y-auto">
-                    <li v-for="problem in rejected" :key="problem">
-                        {{ problem }}
-                    </li>
-                </ul>
-            </div>
-
-            <div
-                v-if="phase === 'uploading' || uploadedCount > 0"
-                class="grid gap-2"
-            >
-                <div class="flex justify-between text-sm">
-                    <span>Mengunggah screenshot…</span>
-                    <span class="tabular-nums">
-                        {{ uploadedCount }} / {{ files.length }}
+                    <span
+                        class="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary"
+                    >
+                        <UploadCloud class="size-7" />
                     </span>
-                </div>
-                <div class="h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                        class="h-full bg-primary transition-all"
-                        :style="{ width: `${progress}%` }"
+                    <div>
+                        <p class="font-semibold">
+                            Tarik & lepas screenshot di sini
+                        </p>
+                        <p class="text-sm text-muted-foreground">
+                            Maksimal {{ limits.maxScreenshots }} file,
+                            {{ formatBytes(limits.maxFileSizeKb * 1024) }} per
+                            file
+                        </p>
+                    </div>
+                    <Button
+                        type="button"
+                        class="rounded-full"
+                        :disabled="isBusy || scanId !== null"
+                        @click="fileInput?.click()"
+                    >
+                        <ImageUp /> Pilih dari komputer
+                    </Button>
+                    <input
+                        ref="fileInput"
+                        type="file"
+                        class="hidden"
+                        multiple
+                        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                        @change="
+                            addFiles(($event.target as HTMLInputElement).files)
+                        "
                     />
                 </div>
-            </div>
 
-            <InputError :message="uploadError ?? undefined" />
+                <div
+                    v-if="files.length > 0"
+                    class="mt-3 flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+                >
+                    <span>
+                        ✅ <strong>{{ files.length }}</strong> screenshot siap
+                        diunggah · {{ formatBytes(totalSize) }}
+                    </span>
+                    <Button
+                        v-if="scanId === null"
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        :disabled="isBusy"
+                        @click="clearFiles"
+                    >
+                        <Trash2 /> Kosongkan
+                    </Button>
+                </div>
 
-            <div class="flex justify-end">
-                <Button type="submit" :disabled="isBusy">
-                    <LoaderCircle v-if="isBusy" class="animate-spin" />
-                    <template v-if="phase === 'creating'"
-                        >Membuat scan…</template
+                <div
+                    v-if="rejected.length > 0"
+                    class="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+                >
+                    <p class="font-medium">
+                        {{ rejected.length }} file dilewati:
+                    </p>
+                    <ul
+                        class="mt-1 max-h-32 list-inside list-disc overflow-y-auto"
                     >
-                    <template v-else-if="phase === 'uploading'"
-                        >Mengunggah…</template
+                        <li v-for="problem in rejected" :key="problem">
+                            {{ problem }}
+                        </li>
+                    </ul>
+                </div>
+            </section>
+
+            <section class="rounded-2xl border bg-card p-5 shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <span
+                            class="flex size-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground"
+                            >3</span
+                        >
+                        <div>
+                            <h2 class="font-semibold">Unggah & analisis</h2>
+                            <p class="text-xs text-muted-foreground">
+                                Anda akan dibawa ke halaman hasil, yang
+                                diperbarui otomatis.
+                            </p>
+                        </div>
+                    </div>
+
+                    <Button
+                        type="submit"
+                        size="lg"
+                        class="rounded-xl"
+                        :disabled="isBusy"
                     >
-                    <template v-else-if="phase === 'starting'"
-                        >Memulai analisis…</template
-                    >
-                    <template v-else-if="scanId !== null"
-                        >Lanjutkan unggahan</template
-                    >
-                    <template v-else>Unggah & analisis</template>
-                </Button>
-            </div>
+                        <LoaderCircle v-if="isBusy" class="animate-spin" />
+                        <template v-if="phase === 'creating'"
+                            >Membuat scan…</template
+                        >
+                        <template v-else-if="phase === 'uploading'"
+                            >Mengunggah…</template
+                        >
+                        <template v-else-if="phase === 'starting'"
+                            >Memulai analisis…</template
+                        >
+                        <template v-else-if="scanId !== null"
+                            >Lanjutkan unggahan</template
+                        >
+                        <template v-else>Unggah & analisis</template>
+                    </Button>
+                </div>
+
+                <div
+                    v-if="phase === 'uploading' || uploadedCount > 0"
+                    class="mt-4 grid gap-2"
+                >
+                    <div class="flex justify-between text-sm">
+                        <span>Mengunggah screenshot…</span>
+                        <span class="tabular-nums">
+                            {{ uploadedCount }} / {{ files.length }}
+                        </span>
+                    </div>
+                    <div class="h-2.5 overflow-hidden rounded-full bg-muted">
+                        <div
+                            class="h-full rounded-full bg-primary transition-all"
+                            :style="{ width: `${progress}%` }"
+                        />
+                    </div>
+                </div>
+
+                <InputError class="mt-3" :message="uploadError ?? undefined" />
+            </section>
         </form>
     </div>
 </template>

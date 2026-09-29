@@ -45,9 +45,9 @@ const declineInvitation = (invitation: DashboardInvitation) => {
     <Dialog v-model:open="open">
         <DialogContent data-test="pending-invitations-modal">
             <DialogHeader>
-                <DialogTitle>Pending team invitations</DialogTitle>
+                <DialogTitle>Undangan team</DialogTitle>
                 <DialogDescription>
-                    Accept or decline the teams you have been invited to join.
+                    Terima atau tolak undangan bergabung ke team berikut.
                 </DialogDescription>
             </DialogHeader>
 
@@ -61,8 +61,8 @@ const declineInvitation = (invitation: DashboardInvitation) => {
                     <div class="space-y-1">
                         <p class="font-medium">{{ invitation.team.name }}</p>
                         <p class="text-sm text-muted-foreground">
-                            {{ invitation.inviterName }} invited you to join
-                            this team.
+                            {{ invitation.inviterName }} mengundang Anda ke team
+                            ini.
                         </p>
                     </div>
 
@@ -73,7 +73,7 @@ const declineInvitation = (invitation: DashboardInvitation) => {
                             :disabled="processingCode === invitation.code"
                             @click="declineInvitation(invitation)"
                         >
-                            Decline
+                            Tolak
                         </Button>
 
                         <Button
@@ -81,7 +81,7 @@ const declineInvitation = (invitation: DashboardInvitation) => {
                             :disabled="processingCode === invitation.code"
                             @click="acceptInvitation(invitation)"
                         >
-                            Accept
+                            Terima
                         </Button>
                     </div>
                 </div>

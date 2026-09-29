@@ -50,7 +50,7 @@ defineOptions({
     layout: (props: { team: Team }) => ({
         breadcrumbs: [
             {
-                title: 'Teams',
+                title: 'Team',
                 href: index(),
             },
             {
@@ -72,8 +72,8 @@ const invitationToCancel = ref<TeamInvitation | null>(null);
 
 const pageTitle = computed(() =>
     props.permissions.canUpdateTeam
-        ? `Edit ${props.team.name}`
-        : `View ${props.team.name}`,
+        ? `Ubah ${props.team.name}`
+        : `Lihat ${props.team.name}`,
 );
 
 const updateMemberRole = (member: TeamMember, newRole: string) => {
@@ -104,8 +104,8 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
         <div v-if="permissions.canUpdateTeam" class="space-y-6">
             <Heading
                 variant="small"
-                title="Team settings"
-                description="Update your team name and settings"
+                title="Pengaturan team"
+                description="Ubah nama dan pengaturan team"
             />
 
             <Form
@@ -114,7 +114,7 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
                 v-slot="{ errors, processing }"
             >
                 <div class="grid gap-2">
-                    <Label for="name">Team name</Label>
+                    <Label for="name">Nama team</Label>
                     <Input
                         id="name"
                         name="name"
@@ -131,7 +131,7 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
                         data-test="team-save-button"
                         :disabled="processing"
                     >
-                        Save
+                        Simpan
                     </Button>
                 </div>
             </Form>
@@ -146,10 +146,10 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
             <div class="flex items-center justify-between">
                 <Heading
                     variant="small"
-                    title="Team members"
+                    title="Anggota team"
                     :description="
                         permissions.canCreateInvitation
-                            ? 'Manage who belongs to this team'
+                            ? 'Atur siapa saja anggota team ini'
                             : ''
                     "
                 />
@@ -159,7 +159,7 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
                     data-test="invite-member-button"
                     @click="inviteDialogOpen = true"
                 >
-                    <UserPlus /> Invite member
+                    <UserPlus /> Undang anggota
                 </Button>
             </div>
 
@@ -245,7 +245,7 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    <p>Remove member</p>
+                                    <p>Keluarkan anggota</p>
                                 </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
@@ -258,8 +258,8 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
         <div v-if="invitations.length > 0" class="space-y-6">
             <Heading
                 variant="small"
-                title="Pending invitations"
-                description="Invitations that haven't been accepted yet"
+                title="Undangan tertunda"
+                description="Undangan yang belum diterima"
             />
 
             <div class="space-y-3">
@@ -298,7 +298,7 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
                                 </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                                <p>Cancel invitation</p>
+                                <p>Batalkan undangan</p>
                             </TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
@@ -313,8 +313,8 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
         >
             <Heading
                 variant="small"
-                title="Delete team"
-                description="Permanently delete your team"
+                title="Hapus team"
+                description="Hapus team secara permanen"
             />
             <div
                 class="space-y-4 rounded-lg border border-red-100 bg-red-50 p-4 dark:border-red-200/10 dark:bg-red-700/10"
@@ -322,16 +322,16 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
                 <div
                     class="relative space-y-0.5 text-red-600 dark:text-red-100"
                 >
-                    <p class="font-medium">Warning</p>
+                    <p class="font-medium">Perhatian</p>
                     <p class="text-sm">
-                        Please proceed with caution, this cannot be undone.
+                        Harap berhati-hati, tindakan ini tidak bisa dibatalkan.
                     </p>
                 </div>
                 <Button
                     data-test="delete-team-button"
                     variant="destructive"
                     @click="deleteDialogOpen = true"
-                    >Delete team</Button
+                    >Hapus team</Button
                 >
             </div>
         </div>

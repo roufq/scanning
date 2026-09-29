@@ -62,42 +62,49 @@ function useDefaults() {
 const numberFields = [
     {
         key: 'idle_change_ratio',
+        help: 'Makin kecil angkanya, makin ketat: hanya layar yang benar-benar tidak berubah yang dianggap diam.',
         label: 'Layar diam jika perubahan kurang dari',
         unit: '% layar',
         step: '0.01',
     },
     {
         key: 'low_change_ratio',
+        help: 'Layar yang berubah sedikit (mis. hanya mengetik satu baris) ditandai kuning sebagai aktivitas rendah.',
         label: 'Aktivitas rendah jika perubahan kurang dari',
         unit: '% layar',
         step: '0.1',
     },
     {
         key: 'time_gap_minutes',
+        help: 'Sesuaikan dengan interval aplikasi pemantau. Jika screenshot diambil tiap 10 menit, 15 menit adalah batas wajar.',
         label: 'Celah waktu jika tidak ada screenshot lebih dari',
         unit: 'menit',
         step: '1',
     },
     {
         key: 'clock_mismatch_minutes',
+        help: 'Selisih kecil wajar karena jam komputer bisa sedikit berbeda. Beri toleransi beberapa menit.',
         label: 'Jam tidak cocok jika selisih lebih dari',
         unit: 'menit',
         step: '1',
     },
     {
         key: 'jiggler_min_streak',
+        help: 'Satu kali kursor bergerak masih wajar. Beberapa kali berturut-turut tanpa perubahan lain patut dicurigai.',
         label: 'Mouse jiggler jika hanya kursor bergerak minimal',
         unit: 'kali beruntun',
         step: '1',
     },
     {
         key: 'similar_distance',
+        help: 'Angka lebih besar mengelompokkan screenshot yang lebih berbeda. Biarkan 4 jika ragu.',
         label: 'Grup mirip: jarak hash maksimal (0 = identik)',
         unit: 'bit',
         step: '1',
     },
     {
         key: 'ai_min_confidence',
+        help: 'Di bawah angka ini AI dianggap ragu dan tidak membuat temuan. Naikkan untuk mengurangi temuan yang keliru.',
         label: 'Keyakinan AI minimal untuk menentukan kategori',
         unit: '%',
         step: '1',
@@ -142,7 +149,7 @@ function removeCategory(category: ScanCategoryItem) {
         </div>
 
         <section
-            class="flex flex-wrap items-center gap-3 rounded-xl border p-4 text-sm"
+            class="flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-4 text-sm shadow-sm"
         >
             <span class="font-medium">Status analyzer:</span>
             <template v-if="analyzer">
@@ -176,15 +183,20 @@ function removeCategory(category: ScanCategoryItem) {
             />
 
             <form
-                class="grid gap-4 rounded-xl border p-4"
+                class="grid gap-5 rounded-2xl border bg-card p-5 shadow-sm"
                 @submit.prevent="save"
             >
                 <div
                     v-for="field in numberFields"
                     :key="field.key"
-                    class="grid gap-1 sm:grid-cols-[1fr_12rem] sm:items-center"
+                    class="grid gap-2 sm:grid-cols-[1fr_12rem] sm:items-center"
                 >
-                    <Label :for="field.key">{{ field.label }}</Label>
+                    <div class="space-y-0.5">
+                        <Label :for="field.key">{{ field.label }}</Label>
+                        <p class="text-xs text-muted-foreground">
+                            {{ field.help }}
+                        </p>
+                    </div>
                     <div class="flex items-center gap-2">
                         <Input
                             :id="field.key"
@@ -244,7 +256,9 @@ function removeCategory(category: ScanCategoryItem) {
                 </Button>
             </div>
 
-            <div class="flex flex-col divide-y rounded-xl border">
+            <div
+                class="flex flex-col divide-y rounded-2xl border bg-card shadow-sm"
+            >
                 <div
                     v-for="category in categories"
                     :key="category.id"

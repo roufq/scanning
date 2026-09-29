@@ -44,9 +44,9 @@ const cancelInvitation = () => {
     <Dialog :open="props.open" @update:open="emit('update:open', $event)">
         <DialogContent>
             <DialogHeader>
-                <DialogTitle>Cancel invitation</DialogTitle>
+                <DialogTitle>Batalkan undangan</DialogTitle>
                 <DialogDescription>
-                    Are you sure you want to cancel the invitation for
+                    Yakin ingin membatalkan undangan untuk
                     <strong>{{ props.invitation?.email }}</strong
                     >?
                 </DialogDescription>
@@ -54,7 +54,7 @@ const cancelInvitation = () => {
 
             <DialogFooter class="gap-2">
                 <DialogClose as-child>
-                    <Button variant="secondary"> Keep invitation </Button>
+                    <Button variant="secondary"> Jangan batalkan </Button>
                 </DialogClose>
 
                 <Button
@@ -63,7 +63,7 @@ const cancelInvitation = () => {
                     :disabled="processing"
                     @click="cancelInvitation"
                 >
-                    Cancel invitation
+                    Batalkan undangan
                 </Button>
             </DialogFooter>
         </DialogContent>

@@ -2,7 +2,6 @@
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { ChevronLeft, ChevronRight, Plus, ScanSearch } from '@lucide/vue';
 import { computed } from 'vue';
-import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDate, statusVariants } from '@/lib/scans';
@@ -31,34 +30,50 @@ const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
 <template>
     <Head title="Scan Screenshot" />
 
-    <div class="flex flex-col gap-6 p-4">
+    <div class="flex flex-col gap-6 p-4 md:p-6">
         <div class="flex flex-wrap items-center justify-between gap-4">
-            <Heading
-                variant="small"
-                title="Scan Screenshot"
-                description="Riwayat pengecekan screenshot kerja per karyawan"
-            />
+            <div class="space-y-1">
+                <h1 class="text-2xl font-bold tracking-tight">
+                    Scan Screenshot
+                </h1>
+                <p class="text-sm text-muted-foreground">
+                    Riwayat pengecekan screenshot kerja per karyawan. Klik nama
+                    untuk melihat hasilnya.
+                </p>
+            </div>
 
-            <Button as-child>
+            <Button class="rounded-xl" as-child>
                 <Link :href="create(teamSlug)"> <Plus /> Scan baru </Link>
             </Button>
         </div>
 
         <div
             v-if="scans.data.length === 0"
-            class="flex flex-col items-center gap-3 rounded-xl border border-dashed p-12 text-center"
+            class="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-primary/25 bg-card p-12 text-center"
         >
-            <ScanSearch class="size-10 text-muted-foreground" />
-            <p class="font-medium">Belum ada scan</p>
+            <span
+                class="flex size-14 items-center justify-center rounded-2xl bg-accent text-accent-foreground"
+            >
+                <ScanSearch class="size-7" />
+            </span>
+            <p class="font-semibold">Belum ada scan</p>
             <p class="max-w-sm text-sm text-muted-foreground">
                 Mulai dengan mengisi nama karyawan lalu unggah screenshot hasil
                 aplikasi pemantau kerja.
             </p>
+            <Button class="mt-2 rounded-xl" as-child>
+                <Link :href="create(teamSlug)">
+                    <Plus /> Buat scan pertama
+                </Link>
+            </Button>
         </div>
 
-        <div v-else class="overflow-x-auto rounded-xl border">
+        <div
+            v-else
+            class="overflow-x-auto rounded-2xl border bg-card shadow-sm"
+        >
             <table class="w-full text-sm">
-                <thead class="bg-muted/50 text-left text-muted-foreground">
+                <thead class="bg-muted/60 text-left text-muted-foreground">
                     <tr>
                         <th class="px-4 py-3 font-medium">Karyawan</th>
                         <th class="px-4 py-3 font-medium">Tanggal kerja</th>
@@ -73,7 +88,7 @@ const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
                     <tr
                         v-for="scan in scans.data"
                         :key="scan.id"
-                        class="border-t hover:bg-muted/30"
+                        class="border-t transition-colors hover:bg-accent/50"
                     >
                         <td class="px-4 py-3 font-medium">
                             <Link
@@ -83,8 +98,13 @@ const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
                                         scan: scan.id,
                                     })
                                 "
-                                class="hover:underline"
+                                class="flex items-center gap-3 hover:text-primary"
                             >
+                                <span
+                                    class="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground"
+                                >
+                                    {{ scan.employee.charAt(0).toUpperCase() }}
+                                </span>
                                 {{ scan.employee }}
                             </Link>
                         </td>
@@ -96,13 +116,24 @@ const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
                         </td>
                         <td class="px-4 py-3 text-right tabular-nums">
                             <span
+                                v-if="scan.status !== 'completed'"
+                                class="text-muted-foreground"
+                                >–</span
+                            >
+                            <span
+                                v-else
+                                class="rounded-full px-2.5 py-1 text-xs font-semibold"
                                 :class="
                                     scan.findingsCount > 0
-                                        ? 'font-semibold text-red-600 dark:text-red-400'
-                                        : 'text-muted-foreground'
+                                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                        : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                                 "
                             >
-                                {{ scan.findingsCount }}
+                                {{
+                                    scan.findingsCount > 0
+                                        ? scan.findingsCount
+                                        : 'Aman'
+                                }}
                             </span>
                         </td>
                         <td class="px-4 py-3">

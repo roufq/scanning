@@ -59,35 +59,35 @@ function handleOpenChange(value: boolean) {
                 @success="emit('update:open', false)"
             >
                 <DialogHeader>
-                    <DialogTitle>Invite a team member</DialogTitle>
+                    <DialogTitle>Undang anggota team</DialogTitle>
                     <DialogDescription>
-                        Send an invitation to join this team.
+                        Kirim undangan untuk bergabung ke team ini.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div class="grid gap-4">
                     <div class="grid gap-2">
-                        <Label for="email">Email address</Label>
+                        <Label for="email">Alamat email</Label>
                         <Input
                             id="email"
                             name="email"
                             data-test="invite-email"
                             type="email"
-                            placeholder="colleague@example.com"
+                            placeholder="rekan@kantor.com"
                             required
                         />
                         <InputError :message="errors.email" />
                     </div>
 
                     <div class="grid gap-2">
-                        <Label for="role">Role</Label>
+                        <Label for="role">Peran</Label>
                         <Select
                             v-model="inviteRole"
                             name="role"
                             data-test="invite-role"
                         >
                             <SelectTrigger class="w-full">
-                                <SelectValue placeholder="Select a role" />
+                                <SelectValue placeholder="Pilih peran" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem
@@ -105,7 +105,7 @@ function handleOpenChange(value: boolean) {
 
                 <DialogFooter class="gap-2">
                     <DialogClose as-child>
-                        <Button variant="secondary"> Cancel </Button>
+                        <Button variant="secondary"> Batal </Button>
                     </DialogClose>
 
                     <Button
@@ -113,7 +113,7 @@ function handleOpenChange(value: boolean) {
                         data-test="invite-submit"
                         :disabled="processing"
                     >
-                        Send invitation
+                        Kirim undangan
                     </Button>
                 </DialogFooter>
             </Form>

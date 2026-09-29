@@ -1,14 +1,26 @@
 <script setup lang="ts">
 import { Head, router, usePage, usePoll } from '@inertiajs/vue3';
 import {
+    Activity,
     AlertTriangle,
+    Clock,
+    Copy,
     FileSpreadsheet,
     FileText,
+    Gamepad2,
+    Hourglass,
+    Images,
+    Info,
     LoaderCircle,
+    MonitorPause,
+    MousePointer2,
+    Recycle,
     RefreshCw,
     Trash2,
 } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
+import type { Component } from 'vue';
+import HelpTip from '@/components/scans/HelpTip.vue';
 import ScanTimeline from '@/components/scans/ScanTimeline.vue';
 import ScreenshotCompareDialog from '@/components/scans/ScreenshotCompareDialog.vue';
 import type { ComparedImage } from '@/components/scans/ScreenshotCompareDialog.vue';
@@ -148,13 +160,72 @@ const activeShare = computed(() => {
     return measured === 0 ? null : (counts.active + counts.low) / measured;
 });
 
-const summaryCards = computed(() => {
+const FINDING_HELP: Record<FindingType, string> = {
+    idle: 'Layar hampir tidak berubah dibanding screenshot sebelumnya. Bisa berarti tidak ada aktivitas, atau sedang membaca/rapat.',
+    mouse_jiggler:
+        'Hanya posisi mouse yang berubah beberapa kali berturut-turut. Pola khas alat penggerak mouse otomatis (mouse jiggler).',
+    exact_duplicate:
+        'File yang persis sama muncul lebih dari sekali. Kemungkinan screenshot disalin untuk mengisi jam.',
+    recycled:
+        'Screenshot sama dengan screenshot dari scan sebelumnya milik karyawan yang sama.',
+    clock_mismatch:
+        'Jam di taskbar berbeda dengan jam di nama file. Kemungkinan nama atau waktu file diubah.',
+    non_work:
+        'Layar menampilkan aplikasi non-kerja (mis. YouTube, game), dikenali dari judul jendela atau AI.',
+    time_gap:
+        'Tidak ada screenshot lebih lama dari biasanya. Mungkin komputer mati atau aplikasi pemantau berhenti.',
+};
+
+const FINDING_STYLE: Record<FindingType, { icon: Component; tone: string }> = {
+    idle: {
+        icon: MonitorPause,
+        tone: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+    },
+    mouse_jiggler: {
+        icon: MousePointer2,
+        tone: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300',
+    },
+    exact_duplicate: {
+        icon: Copy,
+        tone: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950 dark:text-fuchsia-300',
+    },
+    recycled: {
+        icon: Recycle,
+        tone: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950 dark:text-fuchsia-300',
+    },
+    clock_mismatch: {
+        icon: Clock,
+        tone: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+    },
+    non_work: {
+        icon: Gamepad2,
+        tone: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+    },
+    time_gap: {
+        icon: Hourglass,
+        tone: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    },
+};
+
+type SummaryCard = {
+    label: string;
+    value: number | string;
+    alert: boolean;
+    suffix: string;
+    help: string;
+    icon: Component;
+    tone: string;
+};
+
+const summaryCards = computed<SummaryCard[]>(() => {
     const counts = findingCounts.value;
-    const alertCard = (label: string, value: number) => ({
+    const findingCard = (type: FindingType, label: string): SummaryCard => ({
         label,
-        value,
-        alert: value > 0,
+        value: counts[type],
+        alert: counts[type] > 0,
         suffix: '',
+        help: FINDING_HELP[type],
+        ...FINDING_STYLE[type],
     });
 
     return [
@@ -163,22 +234,27 @@ const summaryCards = computed(() => {
             value: props.screenshots.length,
             alert: false,
             suffix: '',
+            help: 'Jumlah screenshot yang diunggah untuk scan ini.',
+            icon: Images,
+            tone: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
         },
         {
             label: 'Layar berubah (aktif)',
             value: formatPercent(activeShare.value),
             alert: false,
             suffix: '',
+            help: 'Persentase screenshot yang isinya berubah dibanding screenshot sebelumnya, tanda ada aktivitas kerja.',
+            icon: Activity,
+            tone: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
         },
-        alertCard('Layar diam', counts.idle),
-        alertCard('Hanya kursor bergerak', counts.mouse_jiggler),
-        alertCard('File identik', counts.exact_duplicate),
-        alertCard('Daur ulang (scan lama)', counts.recycled),
-        alertCard('Jam tidak cocok', counts.clock_mismatch),
-        alertCard('Aplikasi non-kerja', counts.non_work),
+        findingCard('idle', 'Layar diam'),
+        findingCard('mouse_jiggler', 'Hanya kursor bergerak'),
+        findingCard('exact_duplicate', 'File identik'),
+        findingCard('recycled', 'Daur ulang (scan lama)'),
+        findingCard('clock_mismatch', 'Jam tidak cocok'),
+        findingCard('non_work', 'Aplikasi non-kerja'),
         {
-            label: 'Celah waktu',
-            value: counts.time_gap,
+            ...findingCard('time_gap', 'Celah waktu'),
             alert: false,
             suffix: `(${gapMinutes.value} mnt)`,
         },
@@ -252,6 +328,13 @@ const groups = computed(() => {
 const tab = ref<'findings' | 'groups' | 'all'>('findings');
 const findingFilter = ref<FindingType | null>(null);
 const activityFilter = ref<ScreenshotActivity | null>(null);
+
+const presentFindingTypes = computed(() =>
+    FINDING_TYPES.filter((type) => findingCounts.value[type] > 0),
+);
+const presentActivities = computed(() =>
+    ACTIVITIES.filter((activity) => activityCounts.value[activity] > 0),
+);
 
 const visibleFindings = computed(() =>
     findingFilter.value
@@ -392,29 +475,36 @@ function remove() {
 <template>
     <Head :title="`Scan ${scan.employee}`" />
 
-    <div class="flex flex-col gap-6 p-4">
+    <div class="flex flex-col gap-6 p-4 md:p-6">
         <div class="flex flex-wrap items-start justify-between gap-4">
-            <div>
-                <div class="flex items-center gap-3">
-                    <h1 class="text-xl font-semibold tracking-tight">
-                        {{ scan.employee }}
-                    </h1>
-                    <Badge :variant="statusVariants[scan.status]">{{
-                        scan.statusLabel
-                    }}</Badge>
+            <div class="flex items-center gap-4">
+                <span
+                    class="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-lg font-bold text-primary-foreground shadow-md shadow-primary/20"
+                >
+                    {{ scan.employee.charAt(0).toUpperCase() }}
+                </span>
+                <div>
+                    <div class="flex items-center gap-3">
+                        <h1 class="text-2xl font-bold tracking-tight">
+                            {{ scan.employee }}
+                        </h1>
+                        <Badge :variant="statusVariants[scan.status]">{{
+                            scan.statusLabel
+                        }}</Badge>
+                    </div>
+                    <p class="text-sm text-muted-foreground">
+                        {{
+                            scan.workDate
+                                ? formatDate(scan.workDate)
+                                : 'Tanggal kerja tidak diisi'
+                        }}
+                        · {{ scan.screenshotsCount }} screenshot
+                        <template v-if="timeRange">
+                            · {{ timeRange.from.slice(0, 16) }} –
+                            {{ timeRange.to.slice(11, 16) }}
+                        </template>
+                    </p>
                 </div>
-                <p class="text-sm text-muted-foreground">
-                    {{
-                        scan.workDate
-                            ? formatDate(scan.workDate)
-                            : 'Tanggal kerja tidak diisi'
-                    }}
-                    · {{ scan.screenshotsCount }} screenshot
-                    <template v-if="timeRange">
-                        · {{ timeRange.from.slice(0, 16) }} –
-                        {{ timeRange.to.slice(11, 16) }}
-                    </template>
-                </p>
             </div>
 
             <div class="flex flex-wrap gap-2">
@@ -460,7 +550,7 @@ function remove() {
         <!-- Running -->
         <div
             v-if="scan.isRunning"
-            class="flex flex-col gap-3 rounded-xl border p-6"
+            class="flex flex-col gap-3 rounded-2xl border bg-card p-6 shadow-sm"
         >
             <div class="flex items-center gap-2 font-medium">
                 <LoaderCircle class="size-4 animate-spin" />
@@ -481,14 +571,27 @@ function remove() {
             <p class="text-sm text-muted-foreground tabular-nums">
                 {{ scan.processedCount }} /
                 {{ scan.screenshotsCount }} screenshot diproses. Halaman ini
-                diperbarui otomatis.
+                diperbarui otomatis, Anda boleh meninggalkannya dan kembali
+                nanti.
             </p>
+            <div
+                v-if="scan.isStalled"
+                class="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+            >
+                <AlertTriangle class="mt-0.5 size-4 shrink-0" />
+                <p>
+                    Antrean belum diproses. Aplikasi sudah mencoba menyalakan
+                    pemroses antrean otomatis; jika tetap tertahan, jalankan
+                    <code>php artisan queue:work</code> di folder proyek (atau
+                    <code>composer run dev</code>).
+                </p>
+            </div>
         </div>
 
         <!-- Failed / not started -->
         <div
             v-else-if="scan.status === 'failed' || scan.status === 'uploading'"
-            class="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+            class="flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
         >
             <AlertTriangle class="mt-0.5 size-4 shrink-0" />
             <div>
@@ -515,35 +618,68 @@ function remove() {
 
         <!-- Completed -->
         <template v-if="scan.status === 'completed'">
-            <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div
+                class="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/60 dark:text-blue-100"
+            >
+                <Info class="mt-0.5 size-4 shrink-0" />
+                <p>
+                    Angka merah adalah <strong>indikasi</strong> yang perlu
+                    dicek, bukan vonis. Klik temuan atau kotak di timeline untuk
+                    melihat buktinya, dan arahkan kursor ke ikon
+                    <strong>?</strong> untuk penjelasan tiap angka.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
                 <div
                     v-for="card in summaryCards"
                     :key="card.label"
-                    class="rounded-xl border p-4"
+                    class="relative flex items-center gap-3 rounded-2xl border bg-card p-3.5 shadow-sm transition-opacity"
+                    :class="card.value === 0 ? 'opacity-60' : ''"
                 >
-                    <p class="text-xs text-muted-foreground">
-                        {{ card.label }}
-                    </p>
-                    <p
-                        class="text-2xl font-semibold tabular-nums"
-                        :class="
-                            card.alert ? 'text-red-600 dark:text-red-400' : ''
-                        "
+                    <span
+                        class="flex size-10 shrink-0 items-center justify-center rounded-xl"
+                        :class="card.tone"
                     >
-                        {{ card.value }}
-                        <span
-                            v-if="card.suffix"
-                            class="text-sm font-normal text-muted-foreground"
+                        <component :is="card.icon" class="size-5" />
+                    </span>
+                    <div class="min-w-0 pr-4">
+                        <p
+                            class="text-xl leading-tight font-bold tabular-nums"
+                            :class="
+                                card.alert
+                                    ? 'text-red-600 dark:text-red-400'
+                                    : ''
+                            "
                         >
-                            {{ card.suffix }}
-                        </span>
-                    </p>
+                            {{ card.value }}
+                            <span
+                                v-if="card.suffix"
+                                class="text-xs font-normal text-muted-foreground"
+                            >
+                                {{ card.suffix }}
+                            </span>
+                        </p>
+                        <p class="text-xs leading-tight text-muted-foreground">
+                            {{ card.label }}
+                        </p>
+                    </div>
+                    <span class="absolute top-2.5 right-2.5">
+                        <HelpTip :text="card.help" />
+                    </span>
                 </div>
             </div>
 
-            <section class="flex flex-col gap-3 rounded-xl border p-4">
+            <section
+                class="flex flex-col gap-3 rounded-2xl border bg-card p-5 shadow-sm"
+            >
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h2 class="font-medium">Timeline</h2>
+                    <h2 class="flex items-center gap-1.5 font-semibold">
+                        Timeline
+                        <HelpTip
+                            text="Setiap kotak kecil adalah satu screenshot, disusun per jam. Warnanya menunjukkan status layar. Klik kotak untuk melihat gambarnya."
+                        />
+                    </h2>
                     <div class="flex flex-wrap gap-3 text-xs">
                         <span
                             v-for="activity in ACTIVITIES"
@@ -580,12 +716,17 @@ function remove() {
 
             <section
                 v-if="categoryBreakdown.total > 0"
-                class="flex flex-col gap-3 rounded-xl border p-4"
+                class="flex flex-col gap-3 rounded-2xl border bg-card p-5 shadow-sm"
             >
                 <div
                     class="flex flex-wrap items-baseline justify-between gap-2"
                 >
-                    <h2 class="font-medium">Kategori aplikasi</h2>
+                    <h2 class="flex items-center gap-1.5 font-semibold">
+                        Kategori aplikasi
+                        <HelpTip
+                            text="Aplikasi yang terlihat di layar, dikenali dari judul jendela/tab atau oleh AI. Hanya screenshot yang dikenali dengan yakin yang dihitung."
+                        />
+                    </h2>
                     <p class="text-sm text-muted-foreground">
                         {{ formatPercent(categoryBreakdown.productiveShare) }}
                         dari {{ categoryBreakdown.total }} screenshot yang
@@ -630,7 +771,9 @@ function remove() {
             </section>
 
             <section class="flex flex-col gap-4">
-                <div class="flex gap-1 border-b">
+                <div
+                    class="flex w-fit flex-wrap gap-1 rounded-2xl bg-muted p-1"
+                >
                     <button
                         v-for="[key, label] in [
                             ['findings', `Temuan (${findings.length})`],
@@ -639,11 +782,11 @@ function remove() {
                         ] as const"
                         :key="key"
                         type="button"
-                        class="-mb-px border-b-2 px-4 py-2 text-sm font-medium"
+                        class="rounded-xl px-4 py-2 text-sm font-medium transition-colors"
                         :class="
                             tab === key
-                                ? 'border-primary'
-                                : 'border-transparent text-muted-foreground hover:text-foreground'
+                                ? 'bg-card text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
                         "
                         @click="tab = key"
                     >
@@ -656,6 +799,7 @@ function remove() {
                     <div class="flex flex-wrap gap-2">
                         <Button
                             size="sm"
+                            class="rounded-full"
                             :variant="
                                 findingFilter === null ? 'default' : 'outline'
                             "
@@ -664,7 +808,8 @@ function remove() {
                             Semua
                         </Button>
                         <Button
-                            v-for="type in FINDING_TYPES"
+                            v-for="type in presentFindingTypes"
+                            class="rounded-full"
                             :key="type"
                             size="sm"
                             :variant="
@@ -678,20 +823,31 @@ function remove() {
                         </Button>
                     </div>
 
-                    <p
+                    <div
                         v-if="visibleFindings.length === 0"
-                        class="py-8 text-center text-sm text-muted-foreground"
+                        class="rounded-2xl bg-emerald-50 p-8 text-center text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
                     >
-                        Tidak ada temuan. 🎉
-                    </p>
+                        <p class="text-2xl">🎉</p>
+                        <p class="font-medium">Tidak ada temuan</p>
+                        <p>Screenshot pada kategori ini terlihat wajar.</p>
+                    </div>
 
                     <button
                         v-for="finding in visibleFindings.slice(0, 300)"
                         :key="finding.id"
                         type="button"
-                        class="flex items-center gap-4 rounded-lg border p-3 text-left hover:bg-muted/40"
+                        class="flex items-center gap-4 rounded-2xl border bg-card p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
                         @click="openFinding(finding)"
                     >
+                        <span
+                            class="hidden size-10 shrink-0 items-center justify-center rounded-xl sm:flex"
+                            :class="FINDING_STYLE[finding.type].tone"
+                        >
+                            <component
+                                :is="FINDING_STYLE[finding.type].icon"
+                                class="size-5"
+                            />
+                        </span>
                         <img
                             v-if="
                                 finding.related && finding.type !== 'time_gap'
@@ -703,7 +859,7 @@ function remove() {
                                     finding.related.id,
                                 )
                             "
-                            class="hidden h-14 w-24 shrink-0 rounded border object-cover sm:block"
+                            class="hidden h-14 w-24 shrink-0 rounded-lg border object-cover md:block"
                             loading="lazy"
                             alt=""
                         />
@@ -715,21 +871,18 @@ function remove() {
                                     finding.screenshotId,
                                 )
                             "
-                            class="h-14 w-24 shrink-0 rounded border object-cover"
+                            class="h-14 w-24 shrink-0 rounded-lg border object-cover"
                             loading="lazy"
                             alt=""
                         />
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center gap-2">
-                                <Badge
-                                    :variant="
-                                        finding.type === 'time_gap'
-                                            ? 'secondary'
-                                            : 'destructive'
-                                    "
+                                <span
+                                    class="rounded-full px-2 py-0.5 text-xs font-semibold"
+                                    :class="FINDING_STYLE[finding.type].tone"
                                 >
                                     {{ labels.finding[finding.type] }}
-                                </Badge>
+                                </span>
                                 <span class="text-sm font-medium tabular-nums">
                                     {{
                                         formatTime(
@@ -825,6 +978,7 @@ function remove() {
                     <div class="flex flex-wrap gap-2">
                         <Button
                             size="sm"
+                            class="rounded-full"
                             :variant="
                                 activityFilter === null ? 'default' : 'outline'
                             "
@@ -833,7 +987,8 @@ function remove() {
                             Semua
                         </Button>
                         <Button
-                            v-for="activity in ACTIVITIES"
+                            v-for="activity in presentActivities"
+                            class="rounded-full"
                             :key="activity"
                             size="sm"
                             :variant="
