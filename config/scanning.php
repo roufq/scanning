@@ -165,4 +165,19 @@ return [
 
     'extract_chunk_size' => 25,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Queue Worker
+    |--------------------------------------------------------------------------
+    |
+    | When no `queue:work` process is running (e.g. the app is served by
+    | Laragon/Apache), start one in the background whenever a scan waits in
+    | the queue. The worker stops by itself once the queue is empty.
+    |
+    */
+
+    'auto_start_worker' => (bool) env('SCANNING_AUTO_START_WORKER', true),
+
+    'php_binary' => env('SCANNING_PHP_BINARY'),
+
 ];

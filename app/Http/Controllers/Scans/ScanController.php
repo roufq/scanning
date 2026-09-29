@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Scans;
 
+use App\Actions\Scans\EnsureQueueWorker;
 use App\Enums\FindingType;
 use App\Enums\ScanStatus;
 use App\Enums\ScreenshotActivity;
@@ -83,9 +84,12 @@ class ScanController extends Controller
     /**
      * Show the scan's analysis results.
      */
-    public function show(Team $current_team, Scan $scan): Response
+    public function show(Team $current_team, Scan $scan, EnsureQueueWorker $ensureWorker): Response
     {
         $scan->load('employee:id,name')->loadCount('screenshots');
+
+        // Resume analyses that are waiting because no worker is running.
+        $workerAlive = ! $scan->status->isRunning() || $ensureWorker->workerIsAlive() || $ensureWorker->handle();
 
         return Inertia::render('scans/Show', [
             'scan' => [
@@ -99,6 +103,9 @@ class ScanController extends Controller
                 'screenshotsCount' => $scan->screenshots_count,
                 'error' => $scan->error,
                 'analyzedAt' => $scan->analyzed_at?->toIso8601String(),
+                'isStalled' => $scan->status === ScanStatus::Queued
+                    && ! $workerAlive
+                    && $scan->updated_at?->lt(now()->subMinute()),
             ],
             'screenshots' => fn () => $scan->status === ScanStatus::Completed ? $this->screenshots($scan) : [],
             'findings' => fn () => $scan->status === ScanStatus::Completed ? $this->findings($scan) : [],

@@ -46,6 +46,7 @@ export type ScanDetail = {
     screenshotsCount: number;
     error: string | null;
     analyzedAt: string | null;
+    isStalled: boolean;
 };
 
 export type ScreenshotItem = {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Scans;
 
+use App\Actions\Scans\EnsureQueueWorker;
 use App\Actions\Scans\StartScanAnalysis;
 use App\Http\Controllers\Controller;
 use App\Models\Scan;
@@ -14,7 +15,7 @@ class ScanAnalysisController extends Controller
     /**
      * Start (or restart) the analysis of a scan.
      */
-    public function store(Team $current_team, Scan $scan, StartScanAnalysis $startAnalysis): RedirectResponse
+    public function store(Team $current_team, Scan $scan, StartScanAnalysis $startAnalysis, EnsureQueueWorker $ensureWorker): RedirectResponse
     {
         if ($scan->status->isRunning()) {
             throw ValidationException::withMessages(['scan' => 'Scan ini sedang dianalisis.']);
@@ -25,6 +26,7 @@ class ScanAnalysisController extends Controller
         }
 
         $startAnalysis->handle($scan);
+        $ensureWorker->handle();
 
         return to_route('scans.show', ['current_team' => $current_team->slug, 'scan' => $scan->id]);
     }
