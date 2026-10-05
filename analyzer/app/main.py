@@ -43,12 +43,17 @@ class Reference(BaseModel):
     id: int
     md5: str
     phash: str
+    # Needed to confirm near-identical (re-saved / edited) copies pixel by pixel.
+    path: str | None = None
 
 
 class CompareSettings(BaseModel):
     pixel_threshold: int = 25
     similar_distance: int = 4
-    recycled_distance: int = 0
+    # Perceptual-hash distance under which two screenshots are compared pixel by pixel...
+    duplicate_candidate_distance: int = 10
+    # ...and the share of changed pixels under which they count as the same image.
+    duplicate_max_change: float = 0.005
     ignore_regions: list[list[float]] = []
 
 
@@ -110,21 +115,28 @@ def extract(request: ExtractRequest) -> dict:
 @app.post("/compare")
 def compare_screenshots(request: CompareRequest) -> dict:
     try:
-        ordered = [(item.id, resolve_allowed(item.path)) for item in request.screenshots]
+        screenshots = [(item.id, resolve_allowed(item.path), item.md5, item.phash) for item in request.screenshots]
+        references = [
+            (item.id, resolve_allowed(item.path) if item.path else None, item.md5, item.phash)
+            for item in request.references
+        ]
     except PathNotAllowedError as exception:
         raise HTTPException(status_code=422, detail=str(exception)) from exception
 
     settings = request.settings
-    changes = compare.consecutive_changes(ordered, settings.pixel_threshold, settings.ignore_regions)
+    changes = compare.consecutive_changes([(item[0], item[1]) for item in screenshots], settings.pixel_threshold, settings.ignore_regions)
+    confirm = {
+        "candidate_distance": settings.duplicate_candidate_distance,
+        "max_change": settings.duplicate_max_change,
+        "pixel_threshold": settings.pixel_threshold,
+        "ignore_regions": settings.ignore_regions,
+    }
 
     return {
         "changes": [change.__dict__ for change in changes],
         "duplicates": compare.exact_duplicates([(item.id, item.md5) for item in request.screenshots]),
-        "recycled": compare.recycled_matches(
-            [(item.id, item.md5, item.phash) for item in request.screenshots],
-            [(item.id, item.md5, item.phash) for item in request.references],
-            settings.recycled_distance,
-        ),
+        "near_duplicates": compare.near_duplicates(screenshots, {change.id: change.change_ratio for change in changes}, **confirm),
+        "recycled": compare.recycled_matches(screenshots, references, **confirm),
         "groups": compare.similarity_groups(
             [(item.id, item.phash) for item in request.screenshots],
             settings.similar_distance,

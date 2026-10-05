@@ -45,14 +45,16 @@ class CompareScanScreenshots implements ShouldQueue
             ])
             ->all();
 
+        // Earlier uploads of the whole team, so screenshots borrowed from a colleague are caught too.
         $references = Screenshot::query()
             ->whereNotNull('md5')
             ->where('scan_id', '!=', $this->scan->id)
-            ->whereIn('scan_id', Scan::select('id')->where('employee_id', $this->scan->employee_id))
+            ->whereIn('scan_id', Scan::select('id')->where('team_id', $this->scan->team_id))
             ->orderBy('id')
-            ->get(['id', 'md5', 'phash'])
+            ->get(['id', 'path', 'md5', 'phash'])
             ->map(fn (Screenshot $screenshot) => [
                 'id' => $screenshot->id,
+                'path' => $disk->path($screenshot->path),
                 'md5' => (string) $screenshot->md5,
                 'phash' => (string) $screenshot->phash,
             ])

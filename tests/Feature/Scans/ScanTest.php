@@ -136,3 +136,21 @@ test('screenshot images are only served within the scan they belong to', functio
         ->get(route('scans.screenshots.image', [$team, $otherScan, $screenshot, 'image']))
         ->assertNotFound();
 });
+
+test('a scan warns when the taskbar clock could not be read on most screenshots', function (int $withClock, bool $isLow) {
+    $user = User::factory()->create();
+    $scan = Scan::factory()->completed()->for(Employee::factory()->for($user->currentTeam))->create();
+    Screenshot::factory()->count($withClock)->for($scan)->create(['screen_clock' => '08:00']);
+    Screenshot::factory()->count(6 - $withClock)->for($scan)->create(['screen_clock' => null]);
+
+    $this->actingAs($user)
+        ->get(route('scans.show', [$user->currentTeam, $scan]))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('scan.clockCoverage.read', $withClock)
+            ->where('scan.clockCoverage.total', 6)
+            ->where('scan.clockCoverage.isLow', $isLow)
+        );
+})->with([
+    'clock mostly hidden' => [1, true],
+    'clock mostly visible' => [5, false],
+]);

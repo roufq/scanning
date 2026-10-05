@@ -32,7 +32,23 @@ return [
 
     'similar_distance' => (int) env('SCANNING_SIMILAR_DISTANCE', 4),
 
-    'recycled_distance' => (int) env('SCANNING_RECYCLED_DISTANCE', 0),
+    /*
+    | Copies that were re-saved, resized or edited (e.g. a changed clock) are
+    | caught by comparing screenshots whose perceptual hashes are within
+    | duplicate_candidate_distance pixel by pixel: when less than
+    | duplicate_max_change of the screen differs, they are the same image.
+    */
+
+    'duplicate_candidate_distance' => (int) env('SCANNING_DUPLICATE_CANDIDATE_DISTANCE', 10),
+
+    'duplicate_max_change' => (float) env('SCANNING_DUPLICATE_MAX_CHANGE', 0.005),
+
+    /*
+    | Warn when the taskbar clock could be read on fewer than this share of
+    | a scan's screenshots (e.g. a hidden taskbar disables the clock check).
+    */
+
+    'min_clock_coverage' => (float) env('SCANNING_MIN_CLOCK_COVERAGE', 0.5),
 
     'time_gap_minutes' => (int) env('SCANNING_TIME_GAP_MINUTES', 15),
 

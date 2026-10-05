@@ -66,9 +66,15 @@ class ScanFinding extends Model
 
         return match ($this->type) {
             FindingType::ExactDuplicate => "File identik dengan {$related?->original_name} ({$relatedTime}).",
+            FindingType::NearDuplicate => sprintf(
+                'Hampir sama persis dengan screenshot %s (hanya %s layar berbeda), padahal layar sempat berubah di antaranya. Kemungkinan disalin, disimpan ulang, atau jamnya disunting.',
+                $relatedTime,
+                $this->percent($details['change_ratio'] ?? 0),
+            ),
             FindingType::Recycled => sprintf(
-                '%s dengan screenshot dari scan %s (%s).',
+                '%s dengan screenshot dari scan %s%s (%s).',
                 ($details['exact'] ?? false) ? 'File sama persis' : 'Gambar hampir identik',
+                ($details['other_employee'] ?? false) ? 'milik '.($details['employee'] ?? 'karyawan lain').' pada ' : '',
                 ($related?->scan->work_date ?? $related?->scan->created_at)?->settings(['locale' => 'id'])->translatedFormat('D, j M Y') ?? '-',
                 $relatedTime,
             ),

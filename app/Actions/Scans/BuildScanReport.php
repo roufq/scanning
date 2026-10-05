@@ -69,6 +69,8 @@ class BuildScanReport
             }
         }
 
+        $readable = $screenshots->whereNull('error');
+        $summary[] = ['Jam taskbar terbaca', $readable->whereNotNull('screen_clock')->count().' dari '.$readable->count().' screenshot'];
         $summary[] = ['Dianalisis pada', $scan->analyzed_at?->format('d-m-Y H:i') ?? '-'];
 
         return [

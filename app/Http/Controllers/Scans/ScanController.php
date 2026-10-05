@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Scans\StoreScanRequest;
 use App\Models\Scan;
 use App\Models\ScanFinding;
+use App\Models\ScanSetting;
 use App\Models\Screenshot;
 use App\Models\Team;
 use Illuminate\Http\JsonResponse;
@@ -103,6 +104,7 @@ class ScanController extends Controller
                 'screenshotsCount' => $scan->screenshots_count,
                 'error' => $scan->error,
                 'analyzedAt' => $scan->analyzed_at?->toIso8601String(),
+                'clockCoverage' => $this->clockCoverage($scan),
                 'isStalled' => $scan->status === ScanStatus::Queued
                     && ! $workerAlive
                     && $scan->updated_at?->lt(now()->subMinute()),
@@ -130,6 +132,30 @@ class ScanController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Scan dihapus.']);
 
         return to_route('scans.index', ['current_team' => $current_team->slug]);
+    }
+
+    /**
+     * How many readable screenshots showed a clock the OCR could read. Few readings usually
+     * mean a hidden taskbar, which silently switches off the clock mismatch check.
+     *
+     * @return array{read: int, total: int, isLow: bool}|null
+     */
+    protected function clockCoverage(Scan $scan): ?array
+    {
+        $settings = ScanSetting::valuesFor($scan->team_id);
+
+        if ($scan->status !== ScanStatus::Completed || ! $settings['read_screen_clock']) {
+            return null;
+        }
+
+        $total = $scan->screenshots()->whereNull('error')->count();
+        $read = $scan->screenshots()->whereNull('error')->whereNotNull('screen_clock')->count();
+
+        return [
+            'read' => $read,
+            'total' => $total,
+            'isLow' => $total >= 5 && $read / $total < (float) $settings['min_clock_coverage'],
+        ];
     }
 
     /**

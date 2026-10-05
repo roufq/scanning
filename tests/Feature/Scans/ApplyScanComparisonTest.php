@@ -4,6 +4,7 @@ use App\Actions\Scans\ApplyScanComparison;
 use App\Enums\FindingType;
 use App\Enums\ScreenshotActivity;
 use App\Enums\TimestampSource;
+use App\Models\Employee;
 use App\Models\Scan;
 use App\Models\ScanCategory;
 use App\Models\ScanFinding;
@@ -204,4 +205,46 @@ test('team settings override the configured thresholds', function () {
     applyChanges($this->scan, []);
 
     expect(ScanFinding::where('type', FindingType::TimeGap)->count())->toBe(1);
+});
+
+test('near-identical copies of an earlier screenshot are reported as repeated images', function () {
+    [$a, $b, $c, $d] = screenshotsAt($this->scan, ['08:00:00', '08:05:00', '08:10:00', '08:15:00']);
+
+    (new ApplyScanComparison)->handle($this->scan, [
+        'changes' => [change($b, $a, 0.05, []), change($c, $b, 0.05, []), change($d, $c, 0.05, [])],
+        'duplicates' => [['id' => $d->id, 'original_id' => $b->id]],
+        'near_duplicates' => [
+            ['id' => $c->id, 'original_id' => $a->id, 'distance' => 2, 'change_ratio' => 0.0012],
+            ['id' => $d->id, 'original_id' => $b->id, 'distance' => 0, 'change_ratio' => 0.0],
+        ],
+        'recycled' => [],
+        'groups' => [],
+    ]);
+
+    $finding = ScanFinding::where('type', FindingType::NearDuplicate)->sole();
+
+    expect($finding->screenshot_id)->toBe($c->id)
+        ->and($finding->related_screenshot_id)->toBe($a->id)
+        ->and($finding->description())->toStartWith('Hampir sama persis dengan screenshot 08:00 (hanya 0,12% layar berbeda)')
+        ->and($c->fresh()->activity)->toBe(ScreenshotActivity::Duplicate)
+        ->and(ScanFinding::where('type', FindingType::ExactDuplicate)->sole()->screenshot_id)->toBe($d->id);
+});
+
+test('screenshots recycled from a colleague name that colleague', function () {
+    $colleague = Employee::factory()->for($this->scan->team)->create(['name' => 'Siti']);
+    $colleagueScan = Scan::factory()->completed()->for($colleague)->create(['work_date' => '2026-09-20']);
+    $reference = Screenshot::factory()->extracted()->for($colleagueScan)->create(['taken_at' => '2026-09-20 10:30:00']);
+    [$screenshot] = screenshotsAt($this->scan, ['08:00:00']);
+
+    (new ApplyScanComparison)->handle($this->scan, [
+        'changes' => [],
+        'duplicates' => [],
+        'recycled' => [['id' => $screenshot->id, 'reference_id' => $reference->id, 'distance' => 3, 'exact' => false, 'change_ratio' => 0.001]],
+        'groups' => [],
+    ]);
+
+    $finding = ScanFinding::where('type', FindingType::Recycled)->sole();
+
+    expect($finding->details)->toMatchArray(['other_employee' => true, 'employee' => 'Siti'])
+        ->and($finding->description())->toBe('Gambar hampir identik dengan screenshot dari scan milik Siti pada Min, 20 Sep 2026 (10:30).');
 });

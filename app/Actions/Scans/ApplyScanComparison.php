@@ -39,7 +39,8 @@ class ApplyScanComparison
      * @param  array{
      *     changes: list<Change>,
      *     duplicates: list<array{id: int, original_id: int}>,
-     *     recycled: list<array{id: int, reference_id: int, distance: int, exact: bool}>,
+     *     near_duplicates?: list<array{id: int, original_id: int, distance: int, change_ratio: float}>,
+     *     recycled: list<array{id: int, reference_id: int, distance: int, exact: bool, change_ratio?: float}>,
      *     groups: list<list<int>>,
      * }  $result
      */
@@ -59,7 +60,9 @@ class ApplyScanComparison
         /** @var Collection<int, Change> $changes */
         $changes = collect($result['changes'])->keyBy('id');
         $duplicates = collect($result['duplicates'])->keyBy('id');
+        $nearDuplicates = collect($result['near_duplicates'] ?? [])->keyBy('id');
         $recycled = collect($result['recycled'])->keyBy('id');
+        $referenceOwners = $this->referenceOwners($recycled->pluck('reference_id')->all());
         $groupByScreenshot = [];
 
         foreach ($result['groups'] as $index => $ids) {
@@ -75,16 +78,30 @@ class ApplyScanComparison
             $screenshot->change_bbox = $change['bbox'] ?? null;
             $screenshot->change_regions = $change['regions'] ?? null;
             $screenshot->similarity_group = $groupByScreenshot[$screenshot->id] ?? null;
-            $screenshot->activity = $this->activityFor($screenshot, $change, $duplicates->has($screenshot->id) || $recycled->has($screenshot->id));
+            $screenshot->activity = $this->activityFor(
+                $screenshot,
+                $change,
+                $duplicates->has($screenshot->id) || $nearDuplicates->has($screenshot->id) || $recycled->has($screenshot->id),
+            );
 
             if ($duplicate = $duplicates->get($screenshot->id)) {
                 $findings[] = $this->finding($scan, $screenshot->id, FindingType::ExactDuplicate, $duplicate['original_id'], 1.0);
+            } elseif ($nearDuplicate = $nearDuplicates->get($screenshot->id)) {
+                $findings[] = $this->finding($scan, $screenshot->id, FindingType::NearDuplicate, $nearDuplicate['original_id'], 1 - $nearDuplicate['change_ratio'], [
+                    'distance' => $nearDuplicate['distance'],
+                    'change_ratio' => $nearDuplicate['change_ratio'],
+                ]);
             }
 
             if ($match = $recycled->get($screenshot->id)) {
-                $findings[] = $this->finding($scan, $screenshot->id, FindingType::Recycled, $match['reference_id'], 1 - $match['distance'] / 64, [
+                $owner = $referenceOwners[$match['reference_id']] ?? null;
+
+                $findings[] = $this->finding($scan, $screenshot->id, FindingType::Recycled, $match['reference_id'], 1 - ($match['change_ratio'] ?? 0), [
                     'exact' => $match['exact'],
                     'distance' => $match['distance'],
+                    'change_ratio' => $match['change_ratio'] ?? 0,
+                    'other_employee' => $owner !== null && $owner['employee_id'] !== $scan->employee_id,
+                    'employee' => $owner['name'] ?? null,
                 ]);
             }
 
@@ -138,6 +155,30 @@ class ApplyScanComparison
                 'analyzed_at' => now(),
             ]);
         });
+    }
+
+    /**
+     * Which employee each recycled reference screenshot belongs to.
+     *
+     * @param  array<int, mixed>  $referenceIds
+     * @return array<int, array{employee_id: int, name: string}>
+     */
+    protected function referenceOwners(array $referenceIds): array
+    {
+        if ($referenceIds === []) {
+            return [];
+        }
+
+        return Screenshot::query()
+            ->whereKey($referenceIds)
+            ->join('scans', 'scans.id', '=', 'screenshots.scan_id')
+            ->join('employees', 'employees.id', '=', 'scans.employee_id')
+            ->get(['screenshots.id', 'scans.employee_id', 'employees.name'])
+            ->mapWithKeys(fn (Screenshot $screenshot) => [$screenshot->id => [
+                'employee_id' => (int) $screenshot->getAttribute('employee_id'),
+                'name' => (string) $screenshot->getAttribute('name'),
+            ]])
+            ->all();
     }
 
     /**

@@ -15,6 +15,7 @@ export type ScreenshotActivity =
 
 export type FindingType =
     | 'exact_duplicate'
+    | 'near_duplicate'
     | 'recycled'
     | 'idle'
     | 'time_gap'
@@ -47,6 +48,7 @@ export type ScanDetail = {
     error: string | null;
     analyzedAt: string | null;
     isStalled: boolean;
+    clockCoverage: { read: number; total: number; isLow: boolean } | null;
 };
 
 export type ScreenshotItem = {

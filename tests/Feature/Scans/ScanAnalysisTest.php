@@ -164,3 +164,19 @@ test('the scan is marked as failed when the comparison cannot finish', function 
     expect($scan->status)->toBe(ScanStatus::Failed)
         ->and($scan->error)->toBe('Analisis gagal: Connection refused');
 });
+
+test('screenshots are compared with earlier uploads of the whole team but not other teams', function () {
+    $colleagueScreenshot = Screenshot::factory()->extracted()
+        ->for(Scan::factory()->completed()->for(Employee::factory()->for($this->team)))
+        ->create();
+    $otherTeamScreenshot = Screenshot::factory()->extracted()->create();
+    Screenshot::factory()->extracted()->for($this->scan)->create();
+
+    Http::fake(['*/compare' => Http::response(['changes' => [], 'duplicates' => [], 'near_duplicates' => [], 'recycled' => [], 'groups' => []])]);
+
+    app()->call([new CompareScanScreenshots($this->scan), 'handle']);
+
+    Http::assertSent(fn (Request $request) => collect($request['references'])->pluck('id')->all() === [$colleagueScreenshot->id]
+        && str_ends_with($request['references'][0]['path'], $colleagueScreenshot->path)
+        && ! collect($request['references'])->pluck('id')->contains($otherTeamScreenshot->id));
+});

@@ -5,6 +5,7 @@ namespace App\Enums;
 enum FindingType: string
 {
     case ExactDuplicate = 'exact_duplicate';
+    case NearDuplicate = 'near_duplicate';
     case Recycled = 'recycled';
     case Idle = 'idle';
     case TimeGap = 'time_gap';
@@ -19,6 +20,7 @@ enum FindingType: string
     {
         return match ($this) {
             self::ExactDuplicate => 'File identik',
+            self::NearDuplicate => 'Gambar berulang',
             self::Recycled => 'Gambar daur ulang',
             self::Idle => 'Layar diam',
             self::TimeGap => 'Celah waktu',

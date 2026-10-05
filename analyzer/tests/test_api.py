@@ -260,3 +260,88 @@ def test_extract_skips_classification_without_labels(tmp_path):
 
 def test_health_reports_whether_the_classifier_is_installed():
     assert client.get("/health").json() == {"status": "ok", "classifier": classifier.is_installed()}
+
+
+def sheet(seed: int, clock: str | None = "08:00") -> Image.Image:
+    """A spreadsheet-like work screen with a taskbar clock in the bottom-right corner."""
+    image = Image.new("RGB", (1366, 768), "white")
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default(size=15)
+    draw.rectangle((0, 0, 1366, 36), fill="#217346")
+
+    for row in range(26):
+        for column in range(9):
+            x, y = 30 + column * 145, 50 + row * 25
+            draw.rectangle((x, y, x + 145, y + 25), outline="#d4d4d4")
+            draw.text((x + 6, y + 5), str((seed * 7919 + row * 131 + column * 17) % 99991), fill="black", font=font)
+
+    draw.rectangle((0, 720, 1366, 768), fill="#202020")
+
+    if clock:
+        draw.text((1290, 732), clock, fill="white", font=font)
+
+    return image
+
+
+def compare_frames(tmp_path, frames, references=(), settings=None) -> dict:
+    """Save (image, format) frames in order, extract them and run /compare."""
+    paths = []
+
+    for index, (image, fmt) in enumerate(frames, start=1):
+        path = tmp_path / f"{index}.{'jpg' if fmt == 'JPEG' else 'png'}"
+        image.save(path, fmt, **({"quality": 88} if fmt == "JPEG" else {}))
+        paths.append(path)
+
+    screenshots = extract_all(paths)
+    payload = {"screenshots": screenshots, "references": list(references), "settings": {"ignore_regions": [[0.7, 0.93, 1, 1]], **(settings or {})}}
+
+    return client.post("/compare", json=payload).json()
+
+
+def test_compare_finds_resaved_and_edited_copies_of_an_earlier_screenshot(tmp_path):
+    edited = sheet(2, "08:15")
+    edited.putpixel((5, 5), (250, 250, 250))
+
+    result = compare_frames(tmp_path, [
+        (sheet(1, "08:00"), "PNG"),
+        (sheet(2, "08:05"), "PNG"),
+        (sheet(3, "08:10"), "PNG"),
+        (edited, "JPEG"),
+    ])
+
+    assert [(match["id"], match["original_id"]) for match in result["near_duplicates"]] == [(4, 2)]
+    assert result["duplicates"] == []
+
+
+def test_compare_finds_screens_rotated_back_and_forth(tmp_path):
+    result = compare_frames(tmp_path, [(sheet(seed, f"08:{minute:02d}"), "PNG") for minute, seed in zip(range(0, 30, 5), [1, 2, 1, 2, 1, 2])])
+
+    assert sorted(match["id"] for match in result["near_duplicates"]) == [3, 4, 5, 6]
+
+
+def test_compare_leaves_idle_stretches_and_normal_work_to_the_other_checks(tmp_path):
+    (tmp_path / "idle").mkdir()
+    (tmp_path / "work").mkdir()
+
+    idle = compare_frames(tmp_path / "idle", [(sheet(1, f"08:{minute:02d}"), "PNG") for minute in (0, 5, 10, 15)])
+    work = compare_frames(tmp_path / "work", [(sheet(seed, "08:00"), "PNG") for seed in (1, 2, 3, 4, 5)])
+
+    assert idle["near_duplicates"] == []
+    assert work["near_duplicates"] == []
+
+
+def test_compare_finds_screenshots_recycled_from_earlier_uploads_even_when_resaved(tmp_path):
+    old = tmp_path / "old.png"
+    sheet(42, "14:30").save(old)
+    reference = extract_all([old])[0]
+    disguised = sheet(42, "08:05")
+
+    (tmp_path / "new").mkdir()
+
+    result = compare_frames(tmp_path / "new", [
+        (sheet(1, "08:00"), "PNG"),
+        (disguised, "JPEG"),
+    ], references=[{"id": 900, "md5": reference["md5"], "phash": reference["phash"], "path": str(old)}])
+
+    assert [(match["id"], match["reference_id"], match["exact"]) for match in result["recycled"]] == [(2, 900, False)]
+    assert result["recycled"][0]["change_ratio"] < 0.005

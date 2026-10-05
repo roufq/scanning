@@ -5,11 +5,11 @@ import {
     AlertTriangle,
     Clock,
     Copy,
+    CopyPlus,
     FileSpreadsheet,
     FileText,
     Gamepad2,
     Hourglass,
-    Images,
     Info,
     LoaderCircle,
     MonitorPause,
@@ -93,6 +93,7 @@ watch(
 
 const FINDING_TYPES: FindingType[] = [
     'exact_duplicate',
+    'near_duplicate',
     'recycled',
     'idle',
     'mouse_jiggler',
@@ -164,10 +165,12 @@ const FINDING_HELP: Record<FindingType, string> = {
     idle: 'Layar hampir tidak berubah dibanding screenshot sebelumnya. Bisa berarti tidak ada aktivitas, atau sedang membaca/rapat.',
     mouse_jiggler:
         'Hanya posisi mouse yang berubah beberapa kali berturut-turut. Pola khas alat penggerak mouse otomatis (mouse jiggler).',
+    near_duplicate:
+        'Screenshot hampir sama persis dengan screenshot lain di hari yang sama, padahal layar sempat berubah di antaranya. Tanda disalin, disimpan ulang, jamnya disunting, atau dua gambar diputar bergantian.',
     exact_duplicate:
         'File yang persis sama muncul lebih dari sekali. Kemungkinan screenshot disalin untuk mengisi jam.',
     recycled:
-        'Screenshot sama dengan screenshot dari scan sebelumnya milik karyawan yang sama.',
+        'Screenshot sama (atau hampir sama) dengan screenshot dari scan sebelumnya, termasuk milik karyawan lain di team yang sama.',
     clock_mismatch:
         'Jam di taskbar berbeda dengan jam di nama file. Kemungkinan nama atau waktu file diubah.',
     non_work:
@@ -184,6 +187,10 @@ const FINDING_STYLE: Record<FindingType, { icon: Component; tone: string }> = {
     mouse_jiggler: {
         icon: MousePointer2,
         tone: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300',
+    },
+    near_duplicate: {
+        icon: CopyPlus,
+        tone: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950 dark:text-fuchsia-300',
     },
     exact_duplicate: {
         icon: Copy,
@@ -230,15 +237,6 @@ const summaryCards = computed<SummaryCard[]>(() => {
 
     return [
         {
-            label: 'Total screenshot',
-            value: props.screenshots.length,
-            alert: false,
-            suffix: '',
-            help: 'Jumlah screenshot yang diunggah untuk scan ini.',
-            icon: Images,
-            tone: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
-        },
-        {
             label: 'Layar berubah (aktif)',
             value: formatPercent(activeShare.value),
             alert: false,
@@ -250,7 +248,8 @@ const summaryCards = computed<SummaryCard[]>(() => {
         findingCard('idle', 'Layar diam'),
         findingCard('mouse_jiggler', 'Hanya kursor bergerak'),
         findingCard('exact_duplicate', 'File identik'),
-        findingCard('recycled', 'Daur ulang (scan lama)'),
+        findingCard('near_duplicate', 'Gambar berulang'),
+        findingCard('recycled', 'Daur ulang'),
         findingCard('clock_mismatch', 'Jam tidak cocok'),
         findingCard('non_work', 'Aplikasi non-kerja'),
         {
@@ -627,6 +626,23 @@ function remove() {
                     dicek, bukan vonis. Klik temuan atau kotak di timeline untuk
                     melihat buktinya, dan arahkan kursor ke ikon
                     <strong>?</strong> untuk penjelasan tiap angka.
+                </p>
+            </div>
+
+            <div
+                v-if="scan.clockCoverage?.isLow"
+                class="flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+            >
+                <AlertTriangle class="mt-0.5 size-4 shrink-0" />
+                <p>
+                    Jam taskbar hanya terbaca di
+                    <strong
+                        >{{ scan.clockCoverage.read }} dari
+                        {{ scan.clockCoverage.total }}</strong
+                    >
+                    screenshot, sehingga cek "jam tidak cocok" hampir tidak
+                    berjalan. Periksa apakah taskbar disembunyikan atau jam
+                    ditutupi pada screenshot karyawan ini.
                 </p>
             </div>
 

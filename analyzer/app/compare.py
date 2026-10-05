@@ -11,6 +11,12 @@ DIFF_WIDTH = 640
 # Grid cell size (in DIFF_WIDTH pixels) used to group changed pixels into regions.
 REGION_BLOCK = 8
 
+# Change regions are only grouped when less than this share of the screen changed.
+REGION_MAX_RATIO = 0.05
+
+# Width of the cached copies used to confirm near-duplicates (small keeps 1000+ images in memory).
+CONFIRM_WIDTH = 320
+
 
 @dataclass
 class Change:
@@ -87,16 +93,20 @@ def change_regions(mask: np.ndarray, max_regions: int = 10) -> list[dict]:
                         seen[neighbour] = True
                         stack.append(neighbour)
 
-        cell_rows = np.array([cell[0] for cell in cells])
-        cell_cols = np.array([cell[1] for cell in cells])
-        block_mask = np.zeros_like(counts, dtype=bool)
-        block_mask[cell_rows, cell_cols] = True
-        pixel_mask = np.repeat(np.repeat(block_mask, REGION_BLOCK, 0), REGION_BLOCK, 1)[:height, :width] & mask
-        pixel_rows, pixel_cols = np.nonzero(pixel_mask)
+        # Only look at the region's own cells instead of building a full-size mask per region.
+        pixel_rows, pixel_cols = [], []
+
+        for row, col in cells:
+            top, left = row * REGION_BLOCK, col * REGION_BLOCK
+            ys, xs = np.nonzero(mask[top:top + REGION_BLOCK, left:left + REGION_BLOCK])
+            pixel_rows.append(ys + top)
+            pixel_cols.append(xs + left)
+
+        rows_found, cols_found = np.concatenate(pixel_rows), np.concatenate(pixel_cols)
 
         regions.append({
-            "bbox": normalized_bbox(pixel_rows, pixel_cols, height, width),
-            "ratio": round(float(pixel_mask.mean()), 6),
+            "bbox": normalized_bbox(rows_found, cols_found, height, width),
+            "ratio": round(len(rows_found) / (height * width), 6),
         })
 
     return sorted(regions, key=lambda region: region["ratio"], reverse=True)[:max_regions]
@@ -120,8 +130,10 @@ def change_between(
         return ratio, None, []
 
     rows, cols = np.nonzero(mask)
+    # Regions only matter for small changes (cursor-only / mouse jiggler); skip the work otherwise.
+    regions = change_regions(mask) if ratio < REGION_MAX_RATIO else []
 
-    return ratio, normalized_bbox(rows, cols, *mask.shape), change_regions(mask)
+    return ratio, normalized_bbox(rows, cols, *mask.shape), regions
 
 
 def consecutive_changes(
@@ -184,46 +196,166 @@ def exact_duplicates(items: list[tuple[int, str]]) -> list[dict]:
     return duplicates
 
 
+class SmallImages:
+    """Lazily loaded, cached small grayscale copies used to confirm near-duplicates pixel by pixel."""
+
+    def __init__(self) -> None:
+        self.cache: dict[Path, np.ndarray | None] = {}
+
+    def get(self, path: Path) -> np.ndarray | None:
+        if path not in self.cache:
+            try:
+                with Image.open(path) as image:
+                    image = ImageOps.exif_transpose(image).convert("L")
+                    size = (CONFIRM_WIDTH, max(1, round(image.height * CONFIRM_WIDTH / image.width)))
+                    self.cache[path] = np.asarray(image.resize(size, Image.Resampling.BILINEAR), dtype=np.uint8)
+            except OSError:
+                self.cache[path] = None
+
+        return self.cache[path]
+
+
+def pixel_change(
+    first: np.ndarray,
+    second: np.ndarray,
+    pixel_threshold: int,
+    ignore_regions: list[list[float]] | None,
+) -> float:
+    """Fraction of pixels that differ between two small grayscale images, outside the ignored regions."""
+    if first.shape != second.shape:
+        second = np.asarray(Image.fromarray(second).resize((first.shape[1], first.shape[0]), Image.Resampling.BILINEAR))
+
+    mask = np.abs(first.astype(np.int16) - second.astype(np.int16)) > pixel_threshold
+
+    if ignore_regions:
+        mask &= ~ignore_mask(mask.shape, ignore_regions)
+
+    return float(mask.mean())
+
+
+def near_duplicates(
+    items: list[tuple[int, Path, str, str]],
+    change_ratios: dict[int, float],
+    candidate_distance: int,
+    max_change: float,
+    pixel_threshold: int,
+    ignore_regions: list[list[float]] | None = None,
+    max_candidates: int = 20,
+) -> list[dict]:
+    """Later screenshots that are (almost) pixel-identical to an earlier, non-adjacent one of the same set.
+
+    Catches copies that were re-saved, slightly edited or had their clock changed, and screens
+    that are rotated (A-B-A-B). An unchanged screen over consecutive shots is an idle screen and
+    is left to the idle check: a match only counts when the screen changed somewhere in between.
+    Items must be in time order: (id, path, md5, phash); change_ratios maps an id to its pixel
+    change against the previous screenshot (see consecutive_changes).
+    """
+    if len(items) < 3:
+        return []
+
+    distances = hamming_matrix(*(2 * [hashes_to_bits([phash for *_, phash in items])]))
+    changed = np.array([change_ratios.get(item[0], 0.0) > max_change for item in items])
+    # changed_before[k] = number of real screen changes among items[1..k].
+    changed_before = np.cumsum(changed)
+    images = SmallImages()
+    found: list[dict] = []
+
+    for later in range(2, len(items)):
+        later_id, later_path, later_md5, _ = items[later]
+        candidates = [
+            earlier for earlier in range(later - 1)
+            if distances[later, earlier] <= candidate_distance and items[earlier][2] != later_md5
+            # The screen must have changed in between, otherwise this is just an idle stretch.
+            and changed_before[later] - changed_before[earlier] > 0
+        ]
+        candidates.sort(key=lambda earlier: (distances[later, earlier], earlier))
+
+        for earlier in candidates[:max_candidates]:
+            first, second = images.get(items[earlier][1]), images.get(later_path)
+
+            if first is None or second is None:
+                continue
+
+            ratio = pixel_change(first, second, pixel_threshold, ignore_regions)
+
+            if ratio <= max_change:
+                found.append({
+                    "id": later_id,
+                    "original_id": items[earlier][0],
+                    "distance": int(distances[later, earlier]),
+                    "change_ratio": round(ratio, 6),
+                })
+                break
+
+    return found
+
+
 def recycled_matches(
-    items: list[tuple[int, str, str]],
-    references: list[tuple[int, str, str]],
-    max_distance: int,
+    items: list[tuple[int, Path, str, str]],
+    references: list[tuple[int, Path | None, str, str]],
+    candidate_distance: int,
+    max_change: float,
+    pixel_threshold: int,
+    ignore_regions: list[list[float]] | None = None,
+    max_candidates: int = 10,
     chunk_size: int = 2000,
 ) -> list[dict]:
-    """Screenshots that match a screenshot from an earlier upload (same file or near-identical image)."""
+    """Screenshots that reappear from earlier uploads: the same file, or an image that is almost
+    pixel-identical after re-saving, resizing or editing the clock. (id, path, md5, phash) tuples."""
     if not items or not references:
         return []
 
     # Point at the earliest reference with that file hash (references come in id order).
     by_md5: dict[str, int] = {}
 
-    for ref_id, md5, _ in references:
+    for ref_id, _, md5, _ in references:
         by_md5.setdefault(md5, ref_id)
 
     matches: dict[int, dict] = {}
 
-    for screenshot_id, md5, _ in items:
+    for screenshot_id, _, md5, _ in items:
         if md5 in by_md5:
-            matches[screenshot_id] = {"id": screenshot_id, "reference_id": by_md5[md5], "distance": 0, "exact": True}
+            matches[screenshot_id] = {"id": screenshot_id, "reference_id": by_md5[md5], "distance": 0, "exact": True, "change_ratio": 0.0}
 
-    item_bits = hashes_to_bits([phash for _, _, phash in items])
+    pending = [index for index, item in enumerate(items) if item[0] not in matches]
+
+    if not pending:
+        return list(matches.values())
+
+    item_bits = hashes_to_bits([items[index][3] for index in pending])
+    candidates: dict[int, list[tuple[int, int]]] = {index: [] for index in pending}
 
     for start in range(0, len(references), chunk_size):
         chunk = references[start:start + chunk_size]
-        distances = hamming_matrix(item_bits, hashes_to_bits([phash for _, _, phash in chunk]))
+        distances = hamming_matrix(item_bits, hashes_to_bits([phash for *_, phash in chunk]))
 
-        for row, (screenshot_id, _, _) in enumerate(items):
-            column = int(distances[row].argmin())
-            distance = int(distances[row, column])
-            current = matches.get(screenshot_id)
+        for row, column in zip(*np.nonzero(distances <= candidate_distance)):
+            candidates[pending[row]].append((int(distances[row, column]), start + int(column)))
 
-            if distance <= max_distance and (current is None or (not current["exact"] and distance < current["distance"])):
+    images = SmallImages()
+
+    for index, found in candidates.items():
+        screenshot_id, path, _, _ = items[index]
+
+        for distance, reference_index in sorted(found)[:max_candidates]:
+            reference_id, reference_path, _, _ = references[reference_index]
+            first = images.get(reference_path) if reference_path else None
+            second = images.get(path)
+
+            if first is None or second is None:
+                continue
+
+            ratio = pixel_change(first, second, pixel_threshold, ignore_regions)
+
+            if ratio <= max_change:
                 matches[screenshot_id] = {
                     "id": screenshot_id,
-                    "reference_id": chunk[column][0],
+                    "reference_id": reference_id,
                     "distance": distance,
                     "exact": False,
+                    "change_ratio": round(ratio, 6),
                 }
+                break
 
     return list(matches.values())
 

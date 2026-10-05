@@ -27,12 +27,13 @@ class ScreenshotAnalyzer
      * Compare screenshots of one scan with each other and with earlier references.
      *
      * @param  list<array{id: int, path: string, md5: string, phash: string}>  $screenshots
-     * @param  list<array{id: int, md5: string, phash: string}>  $references
+     * @param  list<array{id: int, path: string, md5: string, phash: string}>  $references
      * @param  array<string, mixed>  $settings  the team's effective scanning settings
      * @return array{
      *     changes: list<array{id: int, previous_id: int, change_ratio: float, bbox: list<float>|null, regions: list<array{bbox: list<float>, ratio: float}>}>,
      *     duplicates: list<array{id: int, original_id: int}>,
-     *     recycled: list<array{id: int, reference_id: int, distance: int, exact: bool}>,
+     *     near_duplicates: list<array{id: int, original_id: int, distance: int, change_ratio: float}>,
+     *     recycled: list<array{id: int, reference_id: int, distance: int, exact: bool, change_ratio: float}>,
      *     groups: list<list<int>>,
      * }
      */
@@ -44,7 +45,8 @@ class ScreenshotAnalyzer
             'settings' => [
                 'pixel_threshold' => $settings['pixel_threshold'],
                 'similar_distance' => $settings['similar_distance'],
-                'recycled_distance' => $settings['recycled_distance'],
+                'duplicate_candidate_distance' => $settings['duplicate_candidate_distance'],
+                'duplicate_max_change' => $settings['duplicate_max_change'],
                 'ignore_regions' => $settings['ignore_regions'],
             ],
         ])->throw()->json();
