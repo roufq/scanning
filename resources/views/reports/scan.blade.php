@@ -21,7 +21,16 @@
     </style>
 </head>
 <body>
-    <h1>Laporan Scan Screenshot</h1>
+    <table style="width: auto; margin-bottom: 4px">
+        <tr>
+            <td style="border: none; padding: 0 8px 0 0; vertical-align: middle">
+                <img src="data:image/png;base64,{{ base64_encode((string) file_get_contents(public_path('icon-192.png'))) }}" alt="" style="width: 30px; height: 30px">
+            </td>
+            <td style="border: none; padding: 0; vertical-align: middle">
+                <h1>Laporan Scan Screenshot · {{ config('app.name') }}</h1>
+            </td>
+        </tr>
+    </table>
     <div class="muted">{{ $scan->employee->name }} · dibuat {{ now()->format('d-m-Y H:i') }}</div>
 
     <h2>Ringkasan</h2>

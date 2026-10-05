@@ -37,7 +37,7 @@ const appName = usePage().props.name;
                 <div class="text-left">
                     <p class="leading-tight font-bold">{{ appName }}</p>
                     <p class="text-xs text-muted-foreground">
-                        Cek screenshot kerja jadi lebih cepat
+                        Cek jejak kerja dari screenshot
                     </p>
                 </div>
             </Link>

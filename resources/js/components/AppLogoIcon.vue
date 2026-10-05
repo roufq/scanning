@@ -13,17 +13,44 @@ defineProps<Props>();
 </script>
 
 <template>
+    <!-- JejakKerja mark: a monitor showing a timeline of screenshots (one paused). -->
     <svg
         xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 40 42"
+        viewBox="6 8 36 32"
+        fill="none"
         :class="className"
         v-bind="$attrs"
     >
-        <path
-            fill="currentColor"
-            fill-rule="evenodd"
-            clip-rule="evenodd"
-            d="M17.2 5.633 8.6.855 0 5.633v26.51l16.2 9 16.2-9v-8.442l7.6-4.223V9.856l-8.6-4.777-8.6 4.777V18.3l-5.6 3.111V5.633ZM38 18.301l-5.6 3.11v-6.157l5.6-3.11V18.3Zm-1.06-7.856-5.54 3.078-5.54-3.079 5.54-3.078 5.54 3.079ZM24.8 18.3v-6.157l5.6 3.111v6.158L24.8 18.3Zm-1 1.732 5.54 3.078-13.14 7.302-5.54-3.078 13.14-7.3v-.002Zm-16.2 7.89 7.6 4.222V38.3L2 30.966V7.92l5.6 3.111v16.892ZM8.6 9.3 3.06 6.222 8.6 3.143l5.54 3.08L8.6 9.3Zm21.8 15.51-13.2 7.334V38.3l13.2-7.334v-6.156ZM9.6 11.034l5.6-3.11v14.6l-5.6 3.11v-14.6Z"
+        <rect
+            x="8"
+            y="10"
+            width="32"
+            height="22"
+            rx="3"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.6"
         />
+        <path
+            d="M18 38h12M24 32v6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.6"
+            stroke-linecap="round"
+        />
+        <g fill="currentColor">
+            <rect x="13" y="18" width="2.6" height="7" rx="1.3" />
+            <rect x="18.2" y="18" width="2.6" height="7" rx="1.3" />
+            <rect
+                x="23.4"
+                y="18"
+                width="2.6"
+                height="7"
+                rx="1.3"
+                opacity="0.45"
+            />
+            <rect x="28.6" y="18" width="2.6" height="7" rx="1.3" />
+            <rect x="33.8" y="18" width="2.6" height="7" rx="1.3" />
+        </g>
     </svg>
 </template>
